@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    /* Opzioni Principali di Compilazione */
+    "target": "ES2022",                          /* Specifica la versione di JavaScript generata */
+    "module": "CommonJS",                        /* Genera moduli CommonJS (richiesto per il caricamento dinamico dei comandi) */
+    "moduleResolution": "node",
+    "ignoreDeprecations": "6.0",                  /* Strategia di risoluzione dei moduli in stile Node.js */
+    
+    /* Gestione delle Cartelle */
+    "outDir": "./dist",                          /* Cartella in cui verranno salvati i file JavaScript compilati */
+    "rootDir": "./src",                          /* Specifica la cartella radice dei file sorgente TypeScript */
+    
+    /* Interoperabilità e Supporto */
+    "esModuleInterop": true,                     /* Abilita l'interoperabilità tra moduli CommonJS e ES (permette gli import classici) */
+    "allowSyntheticDefaultImports": true,        /* Permette l'import di moduli senza un default export esplicito */
+    "forceConsistentCasingInFileNames": true,    /* Garantisce che il maiuscolo/minuscolo nei percorsi dei file sia coerente */
+    
+    /* Controlli di Tipo (Flessibili per evitare blocchi inutili) */
+    "strict": false,                             /* Disattiva i controlli iper-rigidi per facilitare lo sviluppo del bot */
+    "skipLibCheck": true,                        /* Salta il controllo dei tipi dei file di dichiarazione (.d.ts) dentro node_modules */
+    "resolveJsonModule": true                    /* Permette di importare direttamente i file .json (es. package.json se necessario) */
+  },
+  "include": [
+    "src/**/*"                                   /* Include nella compilazione tutti i file presenti dentro la cartella src */
+  ],
+  "exclude": [
+    "node_modules",                              /* Esclude i pacchetti scaricati */
+    "dist"                                       /* Esclude la cartella di output per evitare ricompilazioni infinite */
+  ]
+}
