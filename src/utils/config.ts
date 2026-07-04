@@ -1,9 +1,4 @@
 export const CONFIG = {
-    // 🔑 CREDENZIALI DI ACCESSO PRINCIPALI (Aggiunte)
-    TOKEN: "MTUyMTU3MjIwMjQ2ODc0MTM0NA.GUGLz7.brneZXoVC-T3pA72SHt_GqmoVO7-PRtESzT0tk",        // Incolla qui il token segreto del tuo bot
-    CLIENT_ID: "1521572202468741344",          // Incolla qui l'ID del tuo bot (Applicazione)
-    GUILD_ID: "1454959930602950729",    // Incolla qui l'ID del tuo server Discord
-
     // Canali
     CHANNELS: {
         WARN_LOGS: "1521642465927626752", 
