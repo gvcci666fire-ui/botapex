@@ -2,6 +2,7 @@ import { Client, GatewayIntentBits, Collection, REST, Routes, Events } from 'dis
 import * as fs from 'fs';
 import * as path from 'path';
 import { CONFIG } from './utils/config';
+require('dotenv').config()
 
 // Estendiamo l'interfaccia di Client per includere la collezione dei comandi su TypeScript
 class CustomClient extends Client {
@@ -108,13 +109,13 @@ if (fs.existsSync(percorsoEventi)) {
 client.once(Events.ClientReady, async () => {
     console.log(`\n🤖 ${client.user?.tag} è ufficialmente ONLINE su Apex Italy RP!`);
 
-    const rest = new REST({ version: '10' }).setToken(process.env.TOKEN || CONFIG.TOKEN);
+    const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
 
     try {
         console.log(`⏳ Aggiornamento dell'applicazione (/) in corso...`);
 
         const CLIENT_ID = client.user?.id;
-        const GUILD_ID = CONFIG.GUILD_ID || process.env.GUILD_ID;
+        const GUILD_ID = process.env.GUILD_ID;
 
         if (CLIENT_ID && elencoComandi.length > 0) {
             const route = GUILD_ID
@@ -129,7 +130,7 @@ client.once(Events.ClientReady, async () => {
     }
 });
 
-void client.login(process.env.TOKEN || CONFIG.TOKEN).catch((error) => {
+void client.login(process.env.TOKEN).catch((error) => {
     console.error('❌ Login fallito:', error);
     process.exit(1);
 });
