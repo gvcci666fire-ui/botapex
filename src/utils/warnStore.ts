@@ -3,13 +3,15 @@ import * as path from 'path';
 
 export interface StoredWarn {
     id: string;
-    userId: string;
+    userId?: string;
     guildId: string;
     moderatorId: string;
     moderatorTag: string;
     reason: string;
     timestamp: string;
     channelId?: string;
+    kind?: 'user' | 'faction';
+    factionName?: string;
 }
 
 const DATA_DIR = path.resolve(process.cwd(), 'data');
@@ -73,4 +75,17 @@ export function removeWarn(guildId: string, userId: string, warnId: string): Sto
     store[guildId] = guildWarns;
     writeStore(store);
     return removed;
+}
+
+export function getFactionWarns(guildId: string): StoredWarn[] {
+    return getGuildWarns(guildId).filter(warn => warn.kind === 'faction');
+}
+
+export function addFactionWarn(guildId: string, warn: StoredWarn): StoredWarn {
+    const store = readStore();
+    const guildWarns = store[guildId] ?? [];
+    guildWarns.push({ ...warn, kind: 'faction' });
+    store[guildId] = guildWarns;
+    writeStore(store);
+    return warn;
 }
