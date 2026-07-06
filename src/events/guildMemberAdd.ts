@@ -1,13 +1,7 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder, Events, GuildMember, TextChannel } from 'discord.js';
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, Events, GuildMember, TextChannel } from 'discord.js';
 import { CONFIG } from '../utils/config';
 
-const ENTRY_ROLE_ID = '1521635926399520890';
-const VERIFIED_ROLE_IDS = [
-    '1521635925711392948',
-    '1521635922620317816',
-    '1521635919143239903',
-    '1521635927670132847'
-];
+const ENTRY_ROLE_ID = '1521635926399520890'; // Ruolo iniziale per i nuovi membri
 const VERIFICATION_CHANNEL_ID = '1521636167408156895';
 
 export const name = Events.GuildMemberAdd;
@@ -18,14 +12,14 @@ export async function execute(member: GuildMember) {
 
     const { guild } = member;
 
-    const welcomeChannel = guild.systemChannel ?? guild.channels.cache.find((channel): channel is TextChannel => {
-        return channel.isTextBased() && (channel.type === ChannelType.GuildText || channel.type === ChannelType.GuildAnnouncement);
-    });
+    // 1. Canale di Benvenuto Principale
+    const welcomeChannel = guild.channels.cache.get("1521636166154326098") as TextChannel | undefined;
 
     if (!welcomeChannel) {
         console.warn(`⚠️ Nessun canale di benvenuto trovato per il server ${guild.name}.`);
     }
 
+    // 2. Assegnazione Ruolo Iniziale
     try {
         const entryRole = guild.roles.cache.get(ENTRY_ROLE_ID) ?? await guild.roles.fetch(ENTRY_ROLE_ID).catch(() => null);
         if (entryRole) {
@@ -38,6 +32,7 @@ export async function execute(member: GuildMember) {
 
     const joinedAt = member.joinedAt ? new Date(member.joinedAt).toLocaleString('it-IT') : 'recentemente';
 
+    // 3. Invio Embed Benvenuto
     const welcomeEmbed = new EmbedBuilder()
         .setTitle('🎉 Benvenuto su Apex Italy RP!')
         .setDescription(
@@ -65,25 +60,30 @@ export async function execute(member: GuildMember) {
         }
     }
 
+    // 4. Invio Messaggio nel Canale di Verifica
     const verificationChannel = guild.channels.cache.get(VERIFICATION_CHANNEL_ID) as TextChannel | undefined;
+    
     if (verificationChannel) {
+        // Creiamo il bottone pubblico che l'utente dovrà cliccare
         const verifyRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
             new ButtonBuilder()
                 .setCustomId(`verify_member_${member.id}`)
-                .setLabel('Completa la verifica')
+                .setLabel('Inizia Verifica')
                 .setStyle(ButtonStyle.Success)
                 .setEmoji('✅')
         );
 
         const verifyEmbed = new EmbedBuilder()
             .setTitle('🛡️ Verifica richiesta')
-            .setDescription(`L'utente ${member} deve completare la verifica per poter accedere pienamente al server.`)
+            .setDescription(`Benvenuto ${member}! Per sbloccare i canali del server devi superare la verifica di sicurezza.`)
             .addFields(
-                { name: '📍 Procedura', value: 'Clicca il pulsante qui sotto per ricevere il captcha e completare la verifica.', inline: false },
-                { name: '⚠️ Importante', value: 'Questa verifica va eseguita prima di tutto nella procedura di accesso.', inline: false }
+                { name: '📍 Procedura', value: 'Clicca il pulsante qui sotto per iniziare la procedura guidata.', inline: false },
+                { name: '⚠️ Importante', value: 'Questa verifica è obbligatoria per prevenire bot e account fake.', inline: false }
             )
             .setColor(CONFIG.COLORS.INFO)
-            .setTimestamp();
+            .setTimestamp()
+            .setFooter({ text: 'Apex Italy RP • Sistema di Verifica' });
+            ephemeral: true;
 
         try {
             await verificationChannel.send({ content: `${member}`, embeds: [verifyEmbed], components: [verifyRow] });

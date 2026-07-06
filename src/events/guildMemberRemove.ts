@@ -1,4 +1,4 @@
-import { EmbedBuilder, Events, GuildMember } from 'discord.js';
+import { EmbedBuilder, Events, GuildMember, TextChannel } from 'discord.js'; // Aggiunto TextChannel per TypeScript
 import { CONFIG } from '../utils/config';
 
 export const name = Events.GuildMemberRemove;
@@ -8,7 +8,9 @@ export async function execute(member: GuildMember) {
     if (member.user.bot) return;
 
     const { guild } = member;
-    const logChannel = guild.channels.cache.find((channel) => channel.isTextBased() && channel.name.includes('log') || channel.name.includes('arrivi'));
+    
+    // Prendiamo il canale direttamente tramite il suo ID specifico
+    const logChannel = guild.channels.cache.get("1521636169887256626") as TextChannel | undefined;
 
     const leaveEmbed = new EmbedBuilder()
         .setTitle('👋 Uscita dal server')
@@ -20,7 +22,7 @@ export async function execute(member: GuildMember) {
         .setColor(CONFIG.COLORS.ERROR)
         .setTimestamp();
 
-    if (logChannel && 'send' in logChannel) {
+    if (logChannel) {
         try {
             await logChannel.send({ embeds: [leaveEmbed] });
         } catch (error) {
