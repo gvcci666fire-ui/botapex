@@ -6,24 +6,45 @@ export const name = Events.MessageCreate;
 export const once = false;
 
 export async function execute(message: Message) {
-    if (message.author.bot || !message.guild || !message.channel.isDMBased()) {
+    if (message.author.bot || !message.channel.isDMBased()) {
         return;
     }
 
     const captcha = getPendingCaptcha(message.author.id);
-    if (!captcha || message.content.trim().toLowerCase() === 'cancel') {
+    if (!captcha) {
+        return;
+    }
+
+    if (message.content.trim().toLowerCase() === 'cancel') {
+        clearPendingCaptcha(message.author.id);
+        await message.reply({
+            embeds: [new EmbedBuilder()
+                .setTitle('⚪ Verifica annullata')
+                .setDescription('La verifica è stata annullata. Se vuoi riprovare, premi nuovamente il pulsante di verifica.')
+                .setColor(CONFIG.COLORS.INFO)]
+        });
         return;
     }
 
     const answer = Number.parseInt(message.content.trim(), 10);
     if (Number.isNaN(answer)) {
-        await message.reply('⚠️ Inserisci un numero valido. Scrivi `cancel` per annullare.');
+        await message.reply({
+            embeds: [new EmbedBuilder()
+                .setTitle('⚠️ Risposta non valida')
+                .setDescription('Inserisci un numero valido. Scrivi `cancel` per annullare la verifica.')
+                .setColor(CONFIG.COLORS.ERROR)]
+        });
         return;
     }
 
     if (answer !== captcha.answer) {
         clearPendingCaptcha(message.author.id);
-        await message.reply('❌ Risposta errata. La verifica non è stata completata.');
+        await message.reply({
+            embeds: [new EmbedBuilder()
+                .setTitle('❌ Verifica rifiutata')
+                .setDescription('La risposta inserita non è corretta. La verifica non è stata completata.')
+                .setColor(CONFIG.COLORS.ERROR)]
+        });
         return;
     }
 
