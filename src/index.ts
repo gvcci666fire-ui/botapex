@@ -1,8 +1,30 @@
 import { Client, GatewayIntentBits, Collection, REST, Routes, Events } from 'discord.js';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as dotenv from 'dotenv';
 import { CONFIG } from './utils/config';
-require('dotenv').config()
+
+const envCandidates = [
+    path.resolve(process.cwd(), '.env'),
+    path.resolve(__dirname, '..', '.env'),
+    path.resolve(__dirname, '.env')
+].filter((value, index, array) => array.indexOf(value) === index);
+
+let resolvedEnvPath: string | undefined;
+for (const candidate of envCandidates) {
+    if (fs.existsSync(candidate)) {
+        resolvedEnvPath = candidate;
+        dotenv.config({ path: candidate });
+        console.log(`🗂️ File .env caricato da: ${candidate}`);
+        break;
+    }
+}
+
+const token = (process.env.TOKEN || process.env.DISCORD_TOKEN || process.env.BOT_TOKEN || '').trim();
+if (!token) {
+    console.error(`❌ TOKEN non trovato. Imposta TOKEN, DISCORD_TOKEN o BOT_TOKEN in uno di questi file: ${envCandidates.join(', ')}`);
+    process.exit(1);
+}
 
 // Estendiamo l'interfaccia di Client per includere la collezione dei comandi su TypeScript
 class CustomClient extends Client {
@@ -14,7 +36,7 @@ const client = new CustomClient({
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMembers,
         GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.GuildVoiceStates,
+        GatewayIntentBits.GuildVoiceStates, // 🔊 Mantenuto attivo per l'assistenza vocale
         GatewayIntentBits.MessageContent
     ]
 });
@@ -82,14 +104,31 @@ const percorsoEventi = path.join(__dirname, 'events');
 if (fs.existsSync(percorsoEventi)) {
     const fileEventi = fs.readdirSync(percorsoEventi).filter(file => file.endsWith('.ts') || file.endsWith('.js'));
     for (const file of fileEventi) {
-        const evento = require(path.join(percorsoEventi, file));
+        const moduloEvento = require(path.join(percorsoEventi, file));
+        const evento = (moduloEvento && typeof moduloEvento === 'object' && 'default' in moduloEvento) ? moduloEvento.default : moduloEvento;
+        
         const nomeEvento = typeof evento.name === 'string' ? evento.name : path.basename(file, path.extname(file));
+        
         const handler = (...args: any[]) => {
+            // Se l'evento è l'InteractionCreate (bottoni, modali, comandi slash)
+            if (nomeEvento === Events.InteractionCreate) {
+                const interaction = args[0];
+                
+                // Se è un comando slash (/), lo eseguiamo direttamente prendendolo dalla collezione comandi
+                if (interaction.isChatInputCommand()) {
+                    const command = client.commands.get(interaction.commandName);
+                    if (command) {
+                        return command.execute(interaction, client);
+                    }
+                }
+            }
+
+            // Esecuzione standard per gli altri file evento (es. voiceStateUpdate, guildMemberAdd)
             if (typeof evento.execute === 'function') {
-                return evento.execute(...args);
+                return evento.execute(...args, client);
             }
             if (typeof evento.handleInteraction === 'function') {
-                return evento.handleInteraction(...args);
+                return evento.handleInteraction(...args, client);
             }
             return undefined;
         };
@@ -109,7 +148,7 @@ if (fs.existsSync(percorsoEventi)) {
 client.once(Events.ClientReady, async () => {
     console.log(`\n🤖 ${client.user?.tag} è ufficialmente ONLINE su Apex Italy RP!`);
 
-    const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
+    const rest = new REST({ version: '10' }).setToken(token);
 
     try {
         console.log(`⏳ Aggiornamento dell'applicazione (/) in corso...`);
@@ -130,7 +169,7 @@ client.once(Events.ClientReady, async () => {
     }
 });
 
-void client.login(process.env.TOKEN).catch((error) => {
-    console.error('❌ Login fallito:', error);
+void client.login(token).catch((error) => {
+    console.error('❌ Login fallito: il token Discord è invalido, scaduto o non corrisponde al bot.', error);
     process.exit(1);
 });
