@@ -44,19 +44,17 @@ export async function execute(client: Client) {
 
         const player = createAudioPlayer();
         const musicUrls = [
-            'https://s74.notube.link/download.php?token=b54c260008b277aca6cd8aba6299d0b8&key=v654wd7ea140vmt3&file=musica%2Fapexitalyrp.mp3',
-            'https://s74.notube.link/download.php?token=3e5f8c0b8d9f4a1b9c2e7f6d5a4b3c2d&key=v654wd7ea140vmt3&file=musica%2Fapexitalyrp2.mp3',
-            'https://s74.notube.link/download.php?token=1a2b3c4d5e6f7g8h9i0j1k2l3m4n5o6p&key=v654wd7ea140vmt3&file=musica%2Fapexitalyrp3.mp3'
+            'https://www.image2url.com/r2/default/audio/1783257714781-c267c4a6-535f-4575-97fb-33dbdafbb7f6.mp3',
+            'https://www.image2url.com/r2/default/audio/1783276237615-58d18fe0-e563-485e-be27-302645163f04.mp3',
+            'https://www.image2url.com/r2/default/audio/1783257714781-c267c4a6-535f-4575-97fb-33dbdafbb7f6.mp3',
+            'https://www.image2url.com/r2/default/audio/1783276237615-58d18fe0-e563-485e-be27-302645163f04.mp3',
         ];
         let musicIndex = 0;
 
         const playStream = () => {
             const selectedUrl = musicUrls[musicIndex];
             musicIndex = (musicIndex + 1) % musicUrls.length;
-            const resource = createAudioResource(selectedUrl, { 
-                inputType: StreamType.Arbitrary,
-                inlineVolume: true 
-            });
+            const resource = createAudioResource(selectedUrl, { inputType: StreamType.Arbitrary });
             player.play(resource);
         };
 
@@ -109,7 +107,7 @@ export async function execute(client: Client) {
                         { name: '📋 Come funziona?', value: 'Il sistema analizzerà i tuoi ruoli correnti e anteporrà al tuo nome il tag stilizzato del tuo ruolo (Es: `[ꜱᴛᴀꜰꜰ] Nome`).\nSe cambi di grado, ti basterà ricliccare il pulsante.' }
                     )
                     .setTimestamp()
-                    .setFooter({ text: 'Torino RP • Utility Automatiche Staff' });
+                    .setFooter({ text: 'Apex Italy RP • Utility Automatiche Staff' });
 
                 const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
                     new ButtonBuilder()

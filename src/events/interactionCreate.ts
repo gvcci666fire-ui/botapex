@@ -1,8 +1,38 @@
-import { Interaction, EmbedBuilder, GuildMember, Client, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType, TextChannel, ForumChannel, ChannelType } from 'discord.js';
+import { Interaction, EmbedBuilder, GuildMember, Client, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType, TextChannel, ForumChannel, ChannelType, Events } from 'discord.js';
 import { CONFIG, checkPermission, convertToSpecialFont } from '../utils/config';
+import { clearPendingCaptcha, getPendingCaptcha, setPendingCaptcha } from '../utils/captchaStore';
+
+export const name = Events.InteractionCreate;
+export const once = false;
 
 interface CommandClient extends Client {
     commands: Map<string, { execute: (interaction: any) => Promise<void> }>;
+}
+
+const ROLES_LIST = [
+    { id: '1521635810300923925', tag: 'ꜰᴏᴜɴᴅᴇʀ' },
+    { id: '1521635811806674984', tag: 'ᴄᴏ-ꜰᴏᴜɴᴅᴇʀ' },
+    { id: '1521635812775563354', tag: 'ᴏᴡɴᴇʀ' },
+    { id: '1521635813337731115', tag: 'ᴄᴏ-ᴏᴡɴᴇʀ' },
+    { id: '1521635819344105674', tag: 'ꜱᴇʀᴠ. ᴍᴀɴᴀɢᴇʀ', textTag: 'ꜱᴇʀᴠ. ᴍᴀɴᴀɢᴇʀ' },
+    { id: '1521635820254003271', tag: 'ꜱᴇʀᴠ. ᴄᴏ-ᴍᴀɴᴀɢᴇʀ' },
+    { id: '1521635822372393071', tag: 'ᴄ. ᴍᴀɴᴀɢᴇᴍᴇɴᴛ' },
+    { id: '1521635823160656127', tag: 'ꜱ. ᴍᴀɴᴀɢᴇᴍᴇɴᴛ' },
+    { id: '1521635824406368267', tag: 'ꜱᴜᴘᴇʀᴠɪꜱᴏʀ' },
+    { id: '1521635826981670963', tag: 'ʜᴇᴀᴅ ᴀᴅᴍɪɴ' },
+    { id: '1521635828525170808', tag: '<b>ꜱʀ. ᴀᴅᴍɪɴ</b>', textTag: '<b>ꜱʀ. ᴀᴅᴍɪɴ</b>' },
+    { id: '1521635829704036552', tag: 'ᴀᴅᴍɪɴ' },
+    { id: '1521635830819455086', tag: 'ᴊʀ. ᴀᴅᴍɪɴ' },
+    { id: '1521635832614617168', tag: 'ʜᴇᴀᴅ ᴍᴏᴅ' },
+    { id: '1521635833717981254', tag: '<b>ꜱʀ. ᴍᴏᴅ</b>', textTag: '<b>ꜱʀ. ᴍᴏᴅ</b>' },
+    { id: '1521635834535612517', tag: 'ᴍᴏᴅ' },
+    { id: '1521635835869401319', tag: 'ᴊʀ. ᴍᴏᴅ' }
+];
+
+function generateCaptcha() {
+    const a = Math.floor(Math.random() * 10) + 1;
+    const b = Math.floor(Math.random() * 10) + 1;
+    return { a, b, answer: a + b };
 }
 
 export async function handleInteraction(interaction: Interaction) {
@@ -73,14 +103,20 @@ export async function handleInteraction(interaction: Interaction) {
         }
 
         // 2. CAMBIO NICKNAME CON FONT AUTOMATICO
-        if (customId === 'setup_nickname_font') {
+        if (customId === 'setup_nickname_font' || customId === 'btn_setup_nickname') {
             await interaction.deferReply({ ephemeral: true });
 
             const member = interaction.member as GuildMember;
-            const currentName = member.displayName;
-            const highestRole = member.roles.highest.name;
-            const stylizedRole = convertToSpecialFont(highestRole);
-            const finalNick = `[${stylizedRole}] ${currentName}`;
+            const matchedRole = ROLES_LIST.find(role => member.roles.cache.has(role.id));
+
+            if (!matchedRole) {
+                return interaction.editReply({ content: '❌ Non fai parte dello staff, quindi non posso impostare il tuo tag nickname.' });
+            }
+
+            const tag = matchedRole.textTag ?? matchedRole.tag;
+            const currentName = member.displayName.replace(/^\[[^\]]+\]\s*/, '');
+            const baseName = currentName || member.user.username;
+            const finalNick = `[${tag}] ${baseName}`;
 
             if (finalNick.length > 32) {
                 return interaction.editReply({ content: `❌ Il nome finale risulterebbe troppo lungo (${finalNick.length} caratteri). Riduci il tuo nome su Discord.` });
@@ -88,9 +124,122 @@ export async function handleInteraction(interaction: Interaction) {
 
             try {
                 await member.setNickname(finalNick);
-                return interaction.editReply({ content: `✅ Nickname formattato con successo in: \`${finalNick}\`` });
+                return interaction.editReply({ content: `✅ Nickname aggiornato con successo in: \`${finalNick}\`` });
             } catch (err) {
                 return interaction.editReply({ content: `❌ Impossibile modificare il tuo nickname. Verifica i privilegi del bot.` });
+            }
+        }
+
+        if (customId.startsWith('role_toggle_')) {
+            await interaction.deferReply({ ephemeral: true });
+            const roleId = customId.replace('role_toggle_', '');
+            const member = interaction.member;
+
+            if (!member || !('roles' in member)) {
+                return interaction.editReply({ content: '⚠️ Impossibile gestire i ruoli in questa interazione.' });
+            }
+
+            const guildMember = member as GuildMember;
+            const role = interaction.guild?.roles.cache.get(roleId) ?? await interaction.guild?.roles.fetch(roleId).catch(() => null);
+            if (!role) {
+                return interaction.editReply({ content: '⚠️ Il ruolo richiesto non è disponibile.' });
+            }
+
+            const hasRole = guildMember.roles.cache.has(role.id);
+            try {
+                if (hasRole) {
+                    await guildMember.roles.remove(role);
+                    return interaction.editReply({ content: `✅ Hai rimosso il ruolo ${role.name}.` });
+                }
+
+                await guildMember.roles.add(role);
+                return interaction.editReply({ content: `✅ Hai ottenuto il ruolo ${role.name}.` });
+            } catch (error) {
+                console.error('Errore nel toggle del ruolo:', error);
+                return interaction.editReply({ content: '⚠️ Non è stato possibile aggiornare il tuo ruolo.' });
+            }
+        }
+
+        if (customId === 'verify_member' || customId.startsWith('verify_member_')) {
+            await interaction.deferReply({ ephemeral: true });
+            const targetMemberId = customId === 'verify_member' ? interaction.user.id : customId.replace('verify_member_', '');
+            const member = await interaction.guild?.members.fetch(targetMemberId).catch(() => null);
+
+            if (!member) {
+                return interaction.editReply({ content: '⚠️ Impossibile trovare l\'utente da verificare.' });
+            }
+
+            const captcha = generateCaptcha();
+            setPendingCaptcha(member.id, {
+                guildId: interaction.guildId ?? '',
+                memberId: member.id,
+                answer: captcha.answer,
+                expiresAt: Date.now() + 2 * 60 * 1000
+            });
+
+            await interaction.editReply({ content: '📩 Ti ho inviato un captcha privato. Rispondi per completare la verifica.'});
+            await member.send({
+                embeds: [new EmbedBuilder()
+                    .setTitle('🧩 Verifica captcha')
+                    .setDescription('Rispondi con il risultato del calcolo per completare la verifica.')
+                    .addFields({ name: 'Domanda', value: `Quanto fa ${captcha.a} + ${captcha.b}?` })
+                    .setColor(CONFIG.COLORS.SUCCESS)
+                    .setFooter({ text: 'Hai 2 minuti per rispondere. Scrivi cancel per annullare.' })]
+            }).catch(() => undefined);
+            return;
+        }
+
+        if (customId === 'info_status_refresh') {
+            if (!checkPermission(interaction.member, 2)) {
+                return interaction.reply({ content: '❌ Solo lo staff amministrativo può aggiornare questo status.', ephemeral: true });
+            }
+
+            await interaction.deferUpdate();
+
+            try {
+                const response = await fetch('https://api.erlc.gg/v2/server?Players=true&Queue=true', {
+                    headers: {
+                        'server-key': CONFIG.ERLC_API_KEY
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`ERLC status fetch failed: ${response.status}`);
+                }
+
+                const statusData = await response.json();
+                const queueCount = Array.isArray(statusData.Queue) ? statusData.Queue.length : 0;
+                const players = Array.isArray(statusData.Players) ? statusData.Players.slice(0, 15).map((player: any) => `• ${player.Player}`).join('\n') : 'Nessun giocatore online';
+                const joinKey = statusData.JoinKey || 'N/D';
+                const joinUrl = statusData.JoinKey ? `https://join.erlc.gg/${encodeURIComponent(statusData.JoinKey)}` : 'https://erlc.gg';
+
+                const embed = new EmbedBuilder()
+                    .setTitle('📡 Stato server ER:LC')
+                    .setColor(CONFIG.COLORS.INFO)
+                    .addFields(
+                        { name: 'Nome server', value: `${statusData.Name ?? 'N/D'}`, inline: true },
+                        { name: 'Codice per entrare', value: `\`${joinKey}\``, inline: true },
+                        { name: 'Giocatori', value: `${statusData.CurrentPlayers ?? 0}/${statusData.MaxPlayers ?? 0}`, inline: true },
+                        { name: 'In coda', value: `${queueCount}`, inline: true },
+                        { name: 'Giocatori in gioco', value: players, inline: false }
+                    )
+                    .setTimestamp();
+
+                const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+                    new ButtonBuilder()
+                        .setLabel('Entra')
+                        .setStyle(ButtonStyle.Link)
+                        .setURL(joinUrl),
+                    new ButtonBuilder()
+                        .setCustomId('info_status_refresh')
+                        .setLabel('Aggiorna')
+                        .setStyle(ButtonStyle.Secondary)
+                );
+
+                return await interaction.update({ embeds: [embed], components: [row] });
+            } catch (error) {
+                console.error('Errore aggiornamento info-status:', error);
+                return await interaction.followUp({ content: '⚠️ Impossibile aggiornare lo status del server ER:LC in questo momento.', ephemeral: true });
             }
         }
 
@@ -108,19 +257,27 @@ export async function handleInteraction(interaction: Interaction) {
             }
 
             if (action === 'accetta') {
-                embed.setTitle(`${currentTitle} (Accettato)`);
+                embed.setTitle(`${currentTitle} - Accettata 🟢`);
                 embed.setColor(CONFIG.COLORS.SUCCESS);
                 embed.setFields(
                     ...(message.embeds[0].fields ?? []).filter(field => field.name !== '⚖️ Stato Gestione'),
                     { name: '⚖️ Stato Gestione', value: `🟢 Accettato da ${interaction.user}`, inline: false }
                 );
+
+                if (interaction.channel?.isThread()) {
+                    await interaction.channel.setAppliedTags(['1521636209926082633']);
+                }
             } else if (action === 'rifiuta') {
-                embed.setTitle(`${currentTitle} (Rifiutato)`);
+                embed.setTitle(`${currentTitle} - Rifiutata 🔴`);
                 embed.setColor(CONFIG.COLORS.ERROR);
                 embed.setFields(
                     ...(message.embeds[0].fields ?? []).filter(field => field.name !== '⚖️ Stato Gestione'),
                     { name: '⚖️ Stato Gestione', value: `🔴 Rifiutato da ${interaction.user}`, inline: false }
                 );
+
+                if (interaction.channel?.isThread()) {
+                    await interaction.channel.setAppliedTags(['1521636209926082634']);
+                }
             }
 
             await message.edit({ embeds: [embed], components: [] });
@@ -157,7 +314,7 @@ export async function handleInteraction(interaction: Interaction) {
         if (customId.startsWith('unban_')) {
             await interaction.deferReply({ ephemeral: true });
             if (!checkPermission(interaction.member, 2)) {
-                return interaction.editReply({ content: '❌ Solo Admin e Gestionali possono sbanare.' });
+                return interaction.editReply({ content: '❌ Solo Admin e Gestionali possono sbannare.' });
             }
 
             const parts = customId.split('_');
@@ -205,7 +362,7 @@ export async function handleInteraction(interaction: Interaction) {
             
             if (forumChannel) {
                 const consiglioEmbed = new EmbedBuilder()
-                    .setTitle('💡 PROPOSTA DI MIGLIORAMENTO')
+                    .setTitle(`💡 Consiglio - [${interaction.user.username}]`)
                     .setColor(CONFIG.COLORS.INFO)
                     .setDescription(`**Consiglio:** ${consiglio}\n\n**Perché aggiungerlo:** ${motivo}`)
                     .addFields(
@@ -220,8 +377,9 @@ export async function handleInteraction(interaction: Interaction) {
                 );
 
                 await forumChannel.threads.create({
-                    name: `Consiglio (In Attesa) [${interaction.user.username}]`,
-                    message: { embeds: [consiglioEmbed], components: [row] }
+                    name: `Consiglio - [${interaction.user.username}]`,
+                    message: { embeds: [consiglioEmbed], components: [row] },
+                    appliedTags: ['1521636209926082635']
                 });
 
                 return interaction.editReply({ content: '✅ Il tuo consiglio è stato pubblicato nel forum dedicato!' });
