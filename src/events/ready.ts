@@ -53,7 +53,10 @@ export async function execute(client: Client) {
         const playStream = () => {
             const selectedUrl = musicUrls[musicIndex];
             musicIndex = (musicIndex + 1) % musicUrls.length;
-            const resource = createAudioResource(selectedUrl, { inputType: StreamType.Arbitrary });
+            const resource = createAudioResource(selectedUrl, { 
+                inputType: StreamType.Arbitrary,
+                inlineVolume: true 
+            });
             player.play(resource);
         };
 
