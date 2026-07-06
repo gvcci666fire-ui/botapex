@@ -4,6 +4,60 @@ import { CONFIG } from '../../../utils/config';
 const AUTO_STATUS_UPDATE_MS = 60_000;
 const AUTO_STATUS_DURATION_MS = 10 * 60_000;
 
+async function fetchErlcServerStatus() {
+    const response = await fetch('https://api.erlc.gg/v2/server?Players=true&Queue=true', {
+        headers: {
+            'server-key': CONFIG.ERLC_API_KEY,
+            'Accept': 'application/json',
+            'User-Agent': 'ApexItalyRP-Bot/1.0'
+        }
+    });
+
+    if (!response.ok) {
+        let errorBody = '';
+        try {
+            errorBody = await response.text();
+        } catch {}
+        throw new Error(`ERLC status fetch failed: ${response.status}${errorBody ? ` - ${errorBody}` : ''}`);
+    }
+
+    const payload = await response.text();
+    if (!payload) {
+        throw new Error('ERLC response was empty');
+    }
+
+    try {
+        return JSON.parse(payload);
+    } catch {
+        return { raw: payload };
+    }
+}
+
+function buildErlcStatusEmbed(statusData: any) {
+    const queueCount = Array.isArray(statusData.Queue) ? statusData.Queue.length : 0;
+    const players = Array.isArray(statusData.Players) && statusData.Players.length > 0
+        ? statusData.Players.slice(0, 15).map((player: any) => `• ${player.Player ?? player.Name ?? player.username ?? 'Giocatore'}`).join('\n')
+        : 'Nessun giocatore online';
+    const joinKey = typeof statusData.JoinKey === 'string' && statusData.JoinKey.trim() ? statusData.JoinKey.trim() : 'N/D';
+    const joinUrl = joinKey !== 'N/D' ? `https://join.erlc.gg/${encodeURIComponent(joinKey)}` : 'https://erlc.gg';
+
+    return {
+        embed: new EmbedBuilder()
+            .setTitle('📡 Stato server ER:LC')
+            .setColor(CONFIG.COLORS.INFO)
+            .setDescription(statusData.Description ? `${statusData.Description}` : undefined)
+            .addFields(
+                { name: 'Nome server', value: `${statusData.Name ?? 'N/D'}`, inline: true },
+                { name: 'Codice per entrare', value: `\`${joinKey}\``, inline: true },
+                { name: 'Giocatori', value: `${statusData.CurrentPlayers ?? 0}/${statusData.MaxPlayers ?? 0}`, inline: true },
+                { name: 'In coda', value: `${queueCount}`, inline: true },
+                { name: 'Giocatori in gioco', value: players, inline: false }
+            )
+            .setTimestamp(),
+        joinUrl
+    };
+}
+
 export const data = new SlashCommandBuilder()
     .setName('info-status')
     .setDescription('Mostra lo status del server ER:LC con nome, codice di ingresso, giocatori online e coda.');
@@ -22,38 +76,8 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     await interaction.deferReply({ ephemeral: false });
 
     try {
-        const response = await fetch('https://api.erlc.gg/v2/server?Players=true&Queue=true', {
-            headers: {
-                'server-key': CONFIG.ERLC_API_KEY
-            }
-        });
-
-        if (!response.ok) {
-            const errorText = await response.text().catch(() => 'Errore sconosciuto');
-            await interaction.editReply({ content: `❌ Impossibile leggere lo status del server ER:LC (${response.status}). ${errorText}` });
-            return;
-        }
-
-        const statusData = await response.json();
-        const queueCount = Array.isArray(statusData.Queue) ? statusData.Queue.length : 0;
-        const players = Array.isArray(statusData.Players)
-            ? statusData.Players.slice(0, 15).map((player: any) => `• ${player.Player}`).join('\n')
-            : 'Nessun giocatore online';
-        const joinKey = statusData.JoinKey || 'N/D';
-        const joinUrl = statusData.JoinKey ? `https://join.erlc.gg/${encodeURIComponent(statusData.JoinKey)}` : 'https://erlc.gg';
-
-        const embed = new EmbedBuilder()
-            .setTitle('📡 Stato server ER:LC')
-            .setColor(CONFIG.COLORS.INFO)
-            .setDescription(statusData.Description ? `${statusData.Description}` : undefined)
-            .addFields(
-                { name: 'Nome server', value: `${statusData.Name ?? 'N/D'}`, inline: true },
-                { name: 'Codice per entrare', value: `\`${joinKey}\``, inline: true },
-                { name: 'Giocatori', value: `${statusData.CurrentPlayers ?? 0}/${statusData.MaxPlayers ?? 0}`, inline: true },
-                { name: 'In coda', value: `${queueCount}`, inline: true },
-                { name: 'Giocatori in gioco', value: players, inline: false }
-            )
-            .setTimestamp();
+        const statusData = await fetchErlcServerStatus();
+        const { embed, joinUrl } = buildErlcStatusEmbed(statusData);
 
         const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
             new ButtonBuilder()
@@ -71,36 +95,8 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
         const refreshStatus = async () => {
             try {
-                const response = await fetch('https://api.erlc.gg/v2/server?Players=true&Queue=true', {
-                    headers: {
-                        'server-key': CONFIG.ERLC_API_KEY
-                    }
-                });
-
-                if (!response.ok) {
-                    throw new Error(`ERLC status fetch failed: ${response.status}`);
-                }
-
-                const statusData = await response.json();
-                const queueCount = Array.isArray(statusData.Queue) ? statusData.Queue.length : 0;
-                const players = Array.isArray(statusData.Players)
-                    ? statusData.Players.slice(0, 15).map((player: any) => `• ${player.Player}`).join('\n')
-                    : 'Nessun giocatore online';
-                const joinKey = statusData.JoinKey || 'N/D';
-                const joinUrl = statusData.JoinKey ? `https://join.erlc.gg/${encodeURIComponent(statusData.JoinKey)}` : 'https://erlc.gg';
-
-                const updatedEmbed = new EmbedBuilder()
-                    .setTitle('📡 Stato server ER:LC')
-                    .setColor(CONFIG.COLORS.INFO)
-                    .setDescription(statusData.Description ? `${statusData.Description}` : undefined)
-                    .addFields(
-                        { name: 'Nome server', value: `${statusData.Name ?? 'N/D'}`, inline: true },
-                        { name: 'Codice per entrare', value: `\`${joinKey}\``, inline: true },
-                        { name: 'Giocatori', value: `${statusData.CurrentPlayers ?? 0}/${statusData.MaxPlayers ?? 0}`, inline: true },
-                        { name: 'In coda', value: `${queueCount}`, inline: true },
-                        { name: 'Giocatori in gioco', value: players, inline: false }
-                    )
-                    .setTimestamp();
+                const statusData = await fetchErlcServerStatus();
+                const { embed: updatedEmbed } = buildErlcStatusEmbed(statusData);
 
                 await statusMessage.edit({ embeds: [updatedEmbed], components: [row] });
             } catch (error) {
