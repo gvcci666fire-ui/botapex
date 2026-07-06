@@ -1,9 +1,44 @@
 import { Client, Events, ActivityType, EmbedBuilder, TextChannel, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, VoiceConnectionStatus, entersState, StreamType } from '@discordjs/voice';
 import { CONFIG } from '../utils/config';
+import * as https from 'https';
+import * as http from 'http';
 
 export const name = Events.ClientReady;
 export const once = true;
+
+// Fetches a URL and returns a readable IncomingMessage stream, following redirects.
+// Rejects if the response status is not 2xx or if the request errors out.
+function fetchStream(url: string): Promise<http.IncomingMessage> {
+    return new Promise((resolve, reject) => {
+        const protocol = url.startsWith('https') ? https : http;
+        const req = protocol.get(url, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (compatible; DiscordBot/1.0)',
+                'Accept': 'audio/mpeg, audio/*, */*'
+            }
+        }, (res) => {
+            // Follow up to one redirect (301/302/307/308)
+            if ((res.statusCode === 301 || res.statusCode === 302 || res.statusCode === 307 || res.statusCode === 308) && res.headers.location) {
+                res.resume(); // Drain the redirect response body
+                console.log(`🔀 [Audio] Redirect → ${res.headers.location}`);
+                fetchStream(res.headers.location).then(resolve).catch(reject);
+                return;
+            }
+            if (!res.statusCode || res.statusCode < 200 || res.statusCode >= 300) {
+                res.resume();
+                reject(new Error(`HTTP ${res.statusCode} per URL: ${url}`));
+                return;
+            }
+            console.log(`✅ [Audio] Stream aperto — HTTP ${res.statusCode}, Content-Type: ${res.headers['content-type'] ?? 'sconosciuto'}`);
+            resolve(res);
+        });
+        req.on('error', reject);
+        req.setTimeout(15_000, () => {
+            req.destroy(new Error(`Timeout connessione per URL: ${url}`));
+        });
+    });
+}
 
 export async function execute(client: Client) {
     // 1. Log di conferma nel terminale ad avvio avvenuto
@@ -49,22 +84,74 @@ export async function execute(client: Client) {
             'https://s74.notube.link/download.php?token=1a2b3c4d5e6f7g8h9i0j1k2l3m4n5o6p&key=v654wd7ea140vmt3&file=musica%2Fapexitalyrp3.mp3'
         ];
         let musicIndex = 0;
+        let retryCount = 0;
+        const MAX_RETRIES = 5;
+        let isPlaying = false;
 
-        const playStream = () => {
+        const playStream = async () => {
             const selectedUrl = musicUrls[musicIndex];
+            const trackNumber = musicIndex + 1;
             musicIndex = (musicIndex + 1) % musicUrls.length;
-            const resource = createAudioResource(selectedUrl, { inputType: StreamType.Arbitrary });
-            player.play(resource);
+
+            console.log(`🎵 [Audio] Tentativo di riproduzione traccia ${trackNumber}/${musicUrls.length}: ${selectedUrl}`);
+
+            try {
+                const stream = await fetchStream(selectedUrl);
+
+                // StreamType.Arbitrary tells @discordjs/voice to pass the stream
+                // through ffmpeg for transcoding — required for raw MP3 over HTTP.
+                const resource = createAudioResource(stream, {
+                    inputType: StreamType.Arbitrary,
+                    inlineVolume: false
+                });
+
+                resource.playStream.on('error', (err) => {
+                    console.error(`❌ [Audio] Errore nello stream di riproduzione: ${err.message}`);
+                });
+
+                player.play(resource);
+                retryCount = 0; // Reset retry counter on successful play attempt
+            } catch (err: any) {
+                console.error(`❌ [Audio] Impossibile aprire lo stream per la traccia ${trackNumber}: ${err.message}`);
+                retryCount++;
+                if (retryCount >= MAX_RETRIES) {
+                    console.error(`❌ [Audio] Raggiunti ${MAX_RETRIES} tentativi falliti consecutivi. Pausa di 60 secondi prima di riprovare.`);
+                    retryCount = 0;
+                    setTimeout(() => playStream(), 60_000);
+                } else {
+                    // Exponential backoff: 5s, 10s, 20s, 40s…
+                    const delay = 5_000 * Math.pow(2, retryCount - 1);
+                    console.log(`⏳ [Audio] Nuovo tentativo tra ${delay / 1000}s (tentativo ${retryCount}/${MAX_RETRIES})...`);
+                    setTimeout(() => playStream(), delay);
+                }
+            }
         };
 
+        player.on(AudioPlayerStatus.Playing, () => {
+            isPlaying = true;
+            console.log('▶️  [Audio] Riproduzione avviata con successo.');
+        });
+
         player.on(AudioPlayerStatus.Idle, () => {
-            console.log('🎵 Traccia terminata. Riavvio del loop musicale...');
+            if (isPlaying) {
+                console.log('🎵 [Audio] Traccia terminata. Caricamento traccia successiva...');
+            } else {
+                console.warn('⚠️  [Audio] Il player è tornato Idle senza mai riprodurre — possibile problema con lo stream.');
+            }
+            isPlaying = false;
             playStream();
         });
 
         player.on('error', (error: any) => {
-            console.error(`❌ Errore nel riproduttore audio: ${error.message}`);
-            setTimeout(() => playStream(), 5000);
+            console.error(`❌ [Audio] Errore nel riproduttore: ${error.message}`);
+            if (error.resource) {
+                console.error(`   Risorsa coinvolta: ${error.resource.metadata ?? 'N/A'}`);
+            }
+            isPlaying = false;
+            retryCount++;
+            const delay = Math.min(5_000 * Math.pow(2, retryCount - 1), 60_000);
+            console.log(`⏳ [Audio] Nuovo tentativo tra ${delay / 1000}s...`);
+            setTimeout(() => playStream(), delay);
         });
 
         connection.on(VoiceConnectionStatus.Disconnected, async () => {
@@ -81,7 +168,7 @@ export async function execute(client: Client) {
         connection.subscribe(player);
         playStream();
 
-        console.log(`🎵 [Audio Loop] Connesso al canale vocale ${voiceChannelId} - Musica avviata!`);
+        console.log(`🎵 [Audio Loop] Connesso al canale vocale ${voiceChannelId} - Avvio riproduzione...`);
     } catch (error) {
         console.error('❌ Errore durante la connessione al canale vocale:', error);
     }
