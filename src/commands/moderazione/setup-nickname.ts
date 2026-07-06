@@ -30,7 +30,7 @@ module.exports = {
 
         const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
             new ButtonBuilder()
-                .setCustomId('btn_setup_nickname') // Gli utenti normali potranno premere questo bottone per registrarsi
+                .setCustomId('setup_nickname_font')
                 .setLabel('Imposta Nickname')
                 .setStyle(ButtonStyle.Primary)
                 .setEmoji('🆔')
