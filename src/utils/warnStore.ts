@@ -1,6 +1,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
+export type WarnKind = 'user' | 'faction';
+
 export interface StoredWarn {
     id: string;
     userId?: string;
@@ -10,7 +12,7 @@ export interface StoredWarn {
     reason: string;
     timestamp: string;
     channelId?: string;
-    kind?: 'user' | 'faction';
+    kind?: WarnKind;
     factionName?: string;
 }
 
@@ -50,22 +52,39 @@ export function getGuildWarns(guildId: string): StoredWarn[] {
 }
 
 export function getUserWarns(guildId: string, userId: string): StoredWarn[] {
-    return getGuildWarns(guildId).filter(warn => warn.userId === userId);
+    return getGuildWarns(guildId).filter(warn => warn.kind !== 'faction' && warn.userId === userId);
+}
+
+export function getFactionWarns(guildId: string): StoredWarn[] {
+    return getGuildWarns(guildId).filter(warn => warn.kind === 'faction');
 }
 
 export function addWarn(guildId: string, warn: StoredWarn): StoredWarn {
+    const normalizedWarn = { ...warn, kind: warn.kind ?? 'user' };
     const store = readStore();
     const guildWarns = store[guildId] ?? [];
-    guildWarns.push(warn);
+    guildWarns.push(normalizedWarn);
     store[guildId] = guildWarns;
     writeStore(store);
-    return warn;
+    return normalizedWarn;
+}
+
+export function addFactionWarn(guildId: string, warn: StoredWarn): StoredWarn {
+    return addWarn(guildId, { ...warn, kind: 'faction', userId: undefined, factionName: warn.factionName ?? 'Sconosciuta' });
 }
 
 export function removeWarn(guildId: string, userId: string, warnId: string): StoredWarn | null {
     const store = readStore();
     const guildWarns = store[guildId] ?? [];
-    const index = guildWarns.findIndex(warn => warn.userId === userId && warn.id === warnId);
+
+    let index = -1;
+    if (userId) {
+        index = guildWarns.findIndex(warn => warn.kind !== 'faction' && warn.userId === userId && warn.id === warnId);
+    }
+
+    if (index === -1) {
+        index = guildWarns.findIndex(warn => warn.id === warnId);
+    }
 
     if (index === -1) {
         return null;
@@ -75,17 +94,4 @@ export function removeWarn(guildId: string, userId: string, warnId: string): Sto
     store[guildId] = guildWarns;
     writeStore(store);
     return removed;
-}
-
-export function getFactionWarns(guildId: string): StoredWarn[] {
-    return getGuildWarns(guildId).filter(warn => warn.kind === 'faction');
-}
-
-export function addFactionWarn(guildId: string, warn: StoredWarn): StoredWarn {
-    const store = readStore();
-    const guildWarns = store[guildId] ?? [];
-    guildWarns.push({ ...warn, kind: 'faction' });
-    store[guildId] = guildWarns;
-    writeStore(store);
-    return warn;
 }
