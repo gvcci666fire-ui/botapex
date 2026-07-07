@@ -35,6 +35,8 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
         "Non dimenticare di controllare il tuo equipaggiamento prima di entrare in servizio."
     ];
     const notaCasuale = note[Math.floor(Math.random() * note.length)];
+    
+    // Mappa per tracciare i voti attuali
     const voti = new Map<string, 'favorevole' | 'contrario'>();
 
     function getFavorevoli() {
@@ -59,80 +61,84 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
         );
     }
 
-    // 🎨 GENERATORE DI EMBED APEX ITALY RP (MIGLIORATO 100x)
-    function creaEmbed() {
+    // GENERATORE DI EMBED APEX ITALY RP
+    function creaEmbeds(): EmbedBuilder[] {
         const favorevoli = getFavorevoli();
         const contrari = getContrari();
         const pieni = Math.min(favorevoli.length, SOGLIA);
         const vuoti = SOGLIA - pieni;
         
-        // Barra di caricamento premium bicolore minimalista
         const barraProgresso = '🟩'.repeat(pieni) + '⬛'.repeat(vuoti);
         const elencoFavorevoli = favorevoli.length > 0 ? favorevoli.map(id => `• <@${id}>`).join('\n') : '*Nessuna presenza registrata*';
         const sogliaRaggiunta = favorevoli.length >= SOGLIA;
 
-        // 💎 LAYOUT 1: VOTAZIONE IN CORSO (Design Tecnico Blu Notte)
-        if (!sogliaRaggiunta) {
-            return new EmbedBuilder()
-                .setTitle('📊 Votazione SSU • Apex Italy RP')
+        // 🟢 SOGLIA RAGGIUNTA: Ritorna un singolo Embed di Successo
+        if (sogliaRaggiunta) {
+            const embedSuccesso = new EmbedBuilder()
+                .setTitle('⚡ Soglia Raggiunta! • Il server è pronto per l\'apertura!')
                 .setDescription(
-                    `⚖️ **Lo staff è pronto per aprire le porte!**\n` +
-                    `Ma prima di ciò abbiamo bisogno anche di voi, alla soglia di 6 voti sarà possibile l'apertura!. ` +
-                    `Esprimi la tua preferenza tramite i moduli interattivi sottostanti.`
+                    `🎉 **Il quorum minimo di ${SOGLIA} utenti favorevoli è stato soddisfatto!**\n\n` +
+                    `Le procedure di inizializzazione del server sono iniziate, attendere lo staffer. ` 
                 )
-                .setColor('#2463eb') // Blu Premium
+                .setColor('#10b981') // Verde Smeraldo brillante
                 .addFields(
                     { 
-                        name: '┃ 📈 Progresso Votazione', 
-                        value: `\`\`\`📊 ${barraProgresso} [ ${favorevoli.length} / ${SOGLIA} Voti ]\`\`\``, 
-                        inline: false 
-                    },
-                    {
-                        name: '┃ 🟢 Favorevoli all\'Apertura',
-                        value: `${elencoFavorevoli}\n⠀`,
-                        inline: false
-                    },
-                    {
-                        name: '┃ 🗳️ Tabella di Pro e Contro',
-                        value: `> 🟩 Favorevoli: **${favorevoli.length}**\n> 🟥 Contrari: **${contrari.length}**\n> 👥 Partecipanti: **${voti.size}**`,
-                        inline: false
+                        name: '┃ 📊 Stato Soglia', 
+                        value: `\`\`\`diff\n+ COMPLETATO [ ${favorevoli.length} / ${SOGLIA} ]\n\`\`\``, 
+                        inline: true 
                     },
                     { 
-                        name: '┃ ⚠️ Nota dallo Staff di Apex Italy RP', 
-                        value: `\`\`\`fix\n${notaCasuale}\n\`\`\``, 
+                        name: '┃ 🚀 Fase Successiva', 
+                        value: `> Rimanere sintonizzati su questo canale.\n> A breve verrà inviato il codice dallo Staff.`, 
                         inline: true 
                     }
                 )
                 .setFooter({ text: 'Votazione SSU • Apex Italy RP', iconURL: interaction.guild?.iconURL() || undefined })
                 .setTimestamp();
+                
+            return [embedSuccesso];
         }
 
-        // 💎 LAYOUT 2: SOGLIA RAGGIUNTA (Design di Successo Cyber-Green)
-        return new EmbedBuilder()
-            .setTitle('⚡ Soglia Raggiunta! • Il server è pronto per l\'apertura!')
+        // 📊 VOTAZIONE IN CORSO: Ritorna l'accoppiata di due Embed distinti
+        const embedPrincipale = new EmbedBuilder()
+            .setTitle('📊 Votazione SSU • Apex Italy RP')
             .setDescription(
-                `🎉 **Il quorum minimo di ${SOGLIA} utenti favorevoli è stato soddisfatto!**\n\n` +
-                `Le procedure di inizializzazione del server sono inziate, attendere lo staffer. ` 
+                `⚖️ **Lo staff è pronto per aprire le porte!**\n` +
+                `Ma prima di ciò abbiamo bisogno anche di voi, alla soglia di 6 voti sarà possibile l'apertura!.\n` +
+                `Esprimi la tua preferenza tramite i moduli interattivi sottostanti.`
             )
-            .setColor('#10b981') // Verde Smeraldo brillante
+            .setColor('#2463eb') // Blu Premium
             .addFields(
                 { 
-                    name: '┃ 📊 Stato Soglia', 
-                    value: `\`\`\`diff\n+ COMPLETATO [ ${favorevoli.length} / ${SOGLIA} ]\n\`\`\``, 
-                    inline: true 
+                    name: '┃ 📈 Progresso Votazione', 
+                    value: `\`\`\`📊 ${barraProgresso} [ ${favorevoli.length} / ${SOGLIA} Voti ]\`\`\``, 
+                    inline: false 
+                },
+                {
+                    name: '┃ 🗳️ Tabella di Pro e Contro',
+                    value: `> 🟩 Favorevoli: **${favorevoli.length}**\n> 🟥 Contrari: **${contrari.length}**\n> 👥 Partecipanti: **${voti.size}**`,
+                    inline: false
                 },
                 { 
-                    name: '┃ 🚀 Fase Successiva', 
-                    value: `> Rimanere sintonizzati su questo canale.\n> A breve verrà inviato il codice dallo Staff.`, 
-                    inline: true 
+                    name: '┃ ⚠️ Nota dallo Staff di Apex Italy RP', 
+                    value: `\`\`\`fix\n${notaCasuale}\n\`\`\``, 
+                    inline: false 
                 }
             )
             .setFooter({ text: 'Votazione SSU • Apex Italy RP', iconURL: interaction.guild?.iconURL() || undefined })
             .setTimestamp();
+
+        // Secondo Embed dedicato unicamente all'elenco di chi ha votato favorevole
+        const embedListaFavorevoli = new EmbedBuilder()
+            .setTitle('┃ 🟢 Utenti Favorevoli all\'Apertura')
+            .setDescription(elencoFavorevoli)
+            .setColor('#2463eb');
+
+        return [embedPrincipale, embedListaFavorevoli];
     }
 
-    // 💎 LAYOUT 3: REGISTRO DI CONTROLLO (Design Archivio compatto per i Log Staff)
-    function creaEmbedLog(userId: string, tipo: 'favorevole' | 'contrario') {
+    // REGISTRO DI CONTROLLO LOGS
+    function creaEmbedLog(userId: string, tipo: 'favorevole' | 'contrario', cambio: boolean) {
         const favorevoli = getFavorevoli();
         const contrari = getContrari();
         const tipoTesto = tipo === 'favorevole' ? '🟢 APPROVAZIONE' : '🔴 DISAPPROVAZIONE';
@@ -142,7 +148,8 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
             .setTitle('⚖️ LOGS • Sistema Votazioni SSU')
             .setDescription(
                 `• **Operatore:** <@${userId}> (\`${userId}\`)\n` +
-                `• **Azione:** Ha espresso voto di **${tipoTesto}**`
+                `• **Azione:** Ha espresso voto di **${tipoTesto}**\n` +
+                `• **Variazione:** ${cambio ? '🔄 Sì (Ha modificato un voto precedente)' : '🆕 No (Primo inserimento)'}`
             )
             .setColor(colore)
             .addFields(
@@ -156,7 +163,6 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
             .setTimestamp();
     }
 
-
     const canaleStatus = interaction.client.channels.cache.get(CONFIG.CHANNELS.STATUS_ID) as TextChannel;
     const canaleLog = interaction.client.channels.cache.get(CONFIG.CHANNELS.LOGS_VOTAZIONI) as TextChannel;
 
@@ -164,10 +170,9 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
         return void await interaction.editReply({ content: '❌ Errore critico: Il canale `STATUS_ID` nel `config.ts` non esiste o non è valido.' });
     }
 
-    // Spedisce la votazione nel canale centralizzato preso dal config
     const messaggio = await canaleStatus.send({
         content: tagRuolo,
-        embeds: [creaEmbed()],
+        embeds: creaEmbeds(),
         components: [creaRiga()]
     });
 
@@ -179,29 +184,30 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
     collector.on('collect', async (btnInteraction: ButtonInteraction) => {
         const userId = btnInteraction.user.id;
+        const vecchioVoto = voti.get(userId);
+        const nuovoVoto = btnInteraction.customId === 'voto_favorevole' ? 'favorevole' : 'contrario';
 
-        // Blocca il voto se l'utente ha già votato — UN UTENTE PUO' VOTARE UNA SOLA VOLTA
-        if (voti.has(userId)) {
-            await btnInteraction.reply({
-                content: '❌ Hai già votato! Non puoi votare di nuovo.',
+        // Controllo se l'utente ha già inserito esattamente lo stesso voto
+        if (vecchioVoto === nuovoVoto) {
+            return void await btnInteraction.reply({
+                content: `❌ Hai già espresso un voto ${nuovoVoto === 'favorevole' ? 'favorevole' : 'contrario'}. Se desideri cambiare la tua preferenza, clicca sull'altro pulsante.`,
                 flags: MessageFlags.Ephemeral
             });
-            return;
         }
 
-        const nuovoVoto = btnInteraction.customId === 'voto_favorevole' ? 'favorevole' : 'contrario';
+        const cambio = vecchioVoto !== undefined && vecchioVoto !== nuovoVoto;
         voti.set(userId, nuovoVoto);
 
-        // Aggiorna l'embed pubblico
+        // Aggiorna il messaggio principale con i nuovi embed e bottoni aggiornati
         await btnInteraction.update({
-            embeds: [creaEmbed()],
+            embeds: creaEmbeds(),
             components: [creaRiga()]
         });
 
-        // Invia in modo sicuro il log amministrativo nel canale configurato
+        // Invio del Log nel canale dedicato dello Staff
         if (canaleLog && typeof canaleLog.send === 'function') {
             try {
-                await canaleLog.send({ embeds: [creaEmbedLog(userId, nuovoVoto)] });
+                await canaleLog.send({ embeds: [creaEmbedLog(userId, nuovoVoto, cambio)] });
             } catch (e) {
                 console.error('Errore durante la scrittura del Log Votazione:', e);
             }
