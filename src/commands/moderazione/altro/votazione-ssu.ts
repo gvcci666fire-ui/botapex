@@ -132,7 +132,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     }
 
     // 💎 LAYOUT 3: REGISTRO DI CONTROLLO (Design Archivio compatto per i Log Staff)
-    function creaEmbedLog(userId: string, tipo: 'favorevole' | 'contrario', cambio: boolean) {
+    function creaEmbedLog(userId: string, tipo: 'favorevole' | 'contrario') {
         const favorevoli = getFavorevoli();
         const contrari = getContrari();
         const tipoTesto = tipo === 'favorevole' ? '🟢 APPROVAZIONE' : '🔴 DISAPPROVAZIONE';
@@ -142,8 +142,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
             .setTitle('⚖️ LOGS • Sistema Votazioni SSU')
             .setDescription(
                 `• **Operatore:** <@${userId}> (\`${userId}\`)\n` +
-                `• **Azione:** Ha espresso voto di **${tipoTesto}**\n` +
-                `• **Variazione:** ${cambio ? '🔄 Sì (Ha modificato un voto precedente)' : '🆕 No (Primo inserimento)'}`
+                `• **Azione:** Ha espresso voto di **${tipoTesto}**`
             )
             .setColor(colore)
             .addFields(
@@ -157,7 +156,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
             .setTimestamp();
     }
 
-    // 🛑 Estrazione e validazione canali dal file config.ts
+
     const canaleStatus = interaction.client.channels.cache.get(CONFIG.CHANNELS.STATUS_ID) as TextChannel;
     const canaleLog = interaction.client.channels.cache.get(CONFIG.CHANNELS.LOGS_VOTAZIONI) as TextChannel;
 
@@ -180,10 +179,17 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
     collector.on('collect', async (btnInteraction: ButtonInteraction) => {
         const userId = btnInteraction.user.id;
-        const vecchioVoto = voti.get(userId);
-        const nuovoVoto = btnInteraction.customId === 'voto_favorevole' ? 'favorevole' : 'contrario';
-        const cambio = vecchioVoto !== undefined && vecchioVoto !== nuovoVoto;
 
+        // Blocca il voto se l'utente ha già votato — UN UTENTE PUO' VOTARE UNA SOLA VOLTA
+        if (voti.has(userId)) {
+            await btnInteraction.reply({
+                content: '❌ Hai già votato! Non puoi votare di nuovo.',
+                flags: MessageFlags.Ephemeral
+            });
+            return;
+        }
+
+        const nuovoVoto = btnInteraction.customId === 'voto_favorevole' ? 'favorevole' : 'contrario';
         voti.set(userId, nuovoVoto);
 
         // Aggiorna l'embed pubblico
@@ -195,7 +201,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
         // Invia in modo sicuro il log amministrativo nel canale configurato
         if (canaleLog && typeof canaleLog.send === 'function') {
             try {
-                await canaleLog.send({ embeds: [creaEmbedLog(userId, nuovoVoto, cambio)] });
+                await canaleLog.send({ embeds: [creaEmbedLog(userId, nuovoVoto)] });
             } catch (e) {
                 console.error('Errore durante la scrittura del Log Votazione:', e);
             }
