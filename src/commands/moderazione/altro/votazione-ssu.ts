@@ -36,7 +36,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     ];
     const notaCasuale = note[Math.floor(Math.random() * note.length)];
     
-    // Mappa per tracciare i voti attuali
+    // Mappa per tracciare i voti attuels
     const voti = new Map<string, 'favorevole' | 'contrario'>();
 
     function getFavorevoli() {
@@ -72,46 +72,23 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
         const elencoFavorevoli = favorevoli.length > 0 ? favorevoli.map(id => `• <@${id}>`).join('\n') : '*Nessuna presenza registrata*';
         const sogliaRaggiunta = favorevoli.length >= SOGLIA;
 
-        // 🟢 SOGLIA RAGGIUNTA: Ritorna un singolo Embed di Successo
-        if (sogliaRaggiunta) {
-            const embedSuccesso = new EmbedBuilder()
-                .setTitle('⚡ Soglia Raggiunta! • Il server è pronto per l\'apertura!')
-                .setDescription(
-                    `🎉 **Il quorum minimo di ${SOGLIA} utenti favorevoli è stato soddisfatto!**\n\n` +
-                    `Le procedure di inizializzazione del server sono iniziate, attendere lo staffer. ` 
-                )
-                .setColor('#10b981') // Verde Smeraldo brillante
-                .addFields(
-                    { 
-                        name: '┃ 📊 Stato Soglia', 
-                        value: `\`\`\`diff\n+ COMPLETATO [ ${favorevoli.length} / ${SOGLIA} ]\n\`\`\``, 
-                        inline: true 
-                    },
-                    { 
-                        name: '┃ 🚀 Fase Successiva', 
-                        value: `> Rimanere sintonizzati su questo canale.\n> A breve verrà inviato il codice dallo Staff.`, 
-                        inline: true 
-                    }
-                )
-                .setFooter({ text: 'Votazione SSU • Apex Italy RP', iconURL: interaction.guild?.iconURL() || undefined })
-                .setTimestamp();
-                
-            return [embedSuccesso];
-        }
+        // 🟢 ASSET SOGLIA RAGGIUNTA (Modifica lo stato dell'embed principale)
+        const descrizioneStato = sogliaRaggiunta 
+            ? `🎉 **Il quorum minimo di ${SOGLIA} utenti favorevoli è stato soddisfatto!**\n\nLe procedure di inizializzazione del server sono iniziate, attendere lo staffer.`
+            : `⚖️ **Lo staff è pronto per aprire le porte!**\nMa prima di ciò abbiamo bisogno anche di voi, alla soglia di 6 voti sarà possibile l'apertura!.\nEsprimi la tua preferenza tramite i moduli interattivi sottostanti.`;
 
-        // 📊 VOTAZIONE IN CORSO: Ritorna l'accoppiata di due Embed distinti
+        const coloreEmbed = sogliaRaggiunta ? '#10b981' : '#2463eb';
+        const titoloEmbed = sogliaRaggiunta ? '⚡ Soglia Raggiunta! • Il server è pronto!' : '📊 Votazione SSU • Apex Italy RP';
+
+        // EMBED 1: Statistiche globali e informazioni di sessione
         const embedPrincipale = new EmbedBuilder()
-            .setTitle('📊 Votazione SSU • Apex Italy RP')
-            .setDescription(
-                `⚖️ **Lo staff è pronto per aprire le porte!**\n` +
-                `Ma prima di ciò abbiamo bisogno anche di voi, alla soglia di 6 voti sarà possibile l'apertura!.\n` +
-                `Esprimi la tua preferenza tramite i moduli interattivi sottostanti.`
-            )
-            .setColor('#2463eb') // Blu Premium
+            .setTitle(titoloEmbed)
+            .setDescription(descrizioneStato)
+            .setColor(coloreEmbed)
             .addFields(
                 { 
                     name: '┃ 📈 Progresso Votazione', 
-                    value: `\`\`\`📊 ${barraProgresso} [ ${favorevoli.length} / ${SOGLIA} Voti ]\`\`\``, 
+                    value: `\`\`\`📊 ${barraProgresso} ( ${favorevoli.length} / ${SOGLIA} Voti )\`\`\``, 
                     inline: false 
                 },
                 {
@@ -128,16 +105,16 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
             .setFooter({ text: 'Votazione SSU • Apex Italy RP', iconURL: interaction.guild?.iconURL() || undefined })
             .setTimestamp();
 
-        // Secondo Embed dedicato unicamente all'elenco di chi ha votato favorevole
+        // EMBED 2: Separato, SOLO ed esclusivamente per la lista degli utenti favorevoli
         const embedListaFavorevoli = new EmbedBuilder()
             .setTitle('┃ 🟢 Utenti Favorevoli all\'Apertura')
             .setDescription(elencoFavorevoli)
-            .setColor('#2463eb');
+            .setColor(coloreEmbed);
 
         return [embedPrincipale, embedListaFavorevoli];
     }
 
-    // REGISTRO DI CONTROLLO LOGS
+    // REGISTRO DI CONTROLLO LOGS (Risolto il bug del codice binario)
     function creaEmbedLog(userId: string, tipo: 'favorevole' | 'contrario', cambio: boolean) {
         const favorevoli = getFavorevoli();
         const contrari = getContrari();
@@ -155,7 +132,8 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
             .addFields(
                 {
                     name: '📋 Rendimento Voti Totali',
-                    value: `\`\`\`md\n* Favorevoli: [ ${favorevoli.length} ]\n* Contrari:   [ ${contrari.length} ]\n* Totali:     [ ${voti.size} ]\n\`\`\``,
+                    // Sostituiti i blocchi quadra [ ] difettosi con la dicitura pulita "Favorevoli: tot" richiesti
+                    value: `\`\`\`yaml\nFavorevoli: ${favorevoli.length}\nContrari: ${contrari.length}\nTotali: ${voti.size}\n\`\`\``,
                     inline: false
                 }
             )
@@ -187,7 +165,6 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
         const vecchioVoto = voti.get(userId);
         const nuovoVoto = btnInteraction.customId === 'voto_favorevole' ? 'favorevole' : 'contrario';
 
-        // Controllo se l'utente ha già inserito esattamente lo stesso voto
         if (vecchioVoto === nuovoVoto) {
             return void await btnInteraction.reply({
                 content: `❌ Hai già espresso un voto ${nuovoVoto === 'favorevole' ? 'favorevole' : 'contrario'}. Se desideri cambiare la tua preferenza, clicca sull'altro pulsante.`,
@@ -198,13 +175,11 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
         const cambio = vecchioVoto !== undefined && vecchioVoto !== nuovoVoto;
         voti.set(userId, nuovoVoto);
 
-        // Aggiorna il messaggio principale con i nuovi embed e bottoni aggiornati
         await btnInteraction.update({
             embeds: creaEmbeds(),
             components: [creaRiga()]
         });
 
-        // Invio del Log nel canale dedicato dello Staff
         if (canaleLog && typeof canaleLog.send === 'function') {
             try {
                 await canaleLog.send({ embeds: [creaEmbedLog(userId, nuovoVoto, cambio)] });
