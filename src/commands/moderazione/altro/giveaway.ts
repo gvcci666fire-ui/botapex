@@ -66,10 +66,10 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
         .setThumbnail(interaction.user.displayAvatarURL())
         .addFields(
             { name: '🍾 Premio', value: `\`${premio}\``, inline: true },
-            { name: '🗞️ Descrizione', value: descrizione, inline: true },
-            { name: '📊 Stato', value: '🔋 `ATTIVO`', inline: false },
-            { name: '\u200b', value: '\u200b', inline: true },
-            { name: '🗓️ Termina', value: `<t:${Math.floor(fine / 1000)}:T>`, inline: false }
+            { name: '🗞️ Descrizione', value: descrizione, inline: false },
+            { name: '📊 Stato', value: '🔋 `ATTIVO`', inline: true },
+            { name: '\u200b', value: '\u200b', inline: false },
+            { name: '🗓️ Termina', value: `<t:${Math.floor(fine / 1000)}:T>`, inline: true }
         );
 
     if (ruoliTesto) {
