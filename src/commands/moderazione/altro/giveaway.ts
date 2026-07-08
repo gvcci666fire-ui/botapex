@@ -67,7 +67,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
         .setThumbnail(interaction.user.displayAvatarURL())
         .addFields(
             { name: '🍾 Premio', value: `\`${premio}\``, inline: true },
-            { name: '📊 Stato', value: '<a:verde:1518306880005607434> `ATTIVO`', inline: true },
+            { name: '📊 Stato', value: '🔋 `ATTIVO`', inline: true },
             { name: '\u200b', value: '\u200b', inline: true },
             { name: '🗓️ Termina', value: `<t:${Math.floor(fine / 1000)}:T>`, inline: false },
             { name: '🗞️ Descrizione', value: descrizione, inline: false }
