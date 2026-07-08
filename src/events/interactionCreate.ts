@@ -1,4 +1,4 @@
-import { Interaction, EmbedBuilder, GuildMember, Client, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType, TextChannel, ForumChannel, ChannelType, Events } from 'discord.js';
+import { Interaction, EmbedBuilder, GuildMember, Client, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType, TextChannel, ForumChannel, ChannelType, Events, ButtonInteraction, MessageFlags } from 'discord.js';
 import { CONFIG, checkPermission, convertToSpecialFont } from '../utils/config';
 import { clearPendingCaptcha, getPendingCaptcha, setPendingCaptcha } from '../utils/captchaStore';
 
@@ -26,8 +26,13 @@ const ROLES_LIST = [
     { id: '1521635832614617168', tag: 'ʜᴇᴀᴅ ᴍᴏᴅ' },
     { id: '1521635833717981254', tag: '<b>ꜱʀ. ᴍᴏᴅ</b>', textTag: '<b>ꜱʀ. ᴍᴏᴅ</b>' },
     { id: '1521635834535612517', tag: 'ᴍᴏᴅ' },
+    { id: '1521635834535612517', tag: 'ᴍᴏᴅ' },
     { id: '1521635835869401319', tag: 'ᴊʀ. ᴍᴏᴅ' }
 ];
+
+const SOGLIA = 6;
+// Mappa globale per persistere i voti tra le interazioni nello stesso ciclo vitale del bot
+const votiSSU = new Map<string, 'favorevole' | 'contrario'>();
 
 function generateCaptcha() {
     const a = Math.floor(Math.random() * 10) + 1;
@@ -46,16 +51,12 @@ async function fetchErlcServerStatus() {
 
     if (!response.ok) {
         let errorBody = '';
-        try {
-            errorBody = await response.text();
-        } catch {}
+        try { errorBody = await response.text(); } catch {}
         throw new Error(`ERLC status fetch failed: ${response.status}${errorBody ? ` - ${errorBody}` : ''}`);
     }
 
     const payload = await response.text();
-    if (!payload) {
-        throw new Error('ERLC response was empty');
-    }
+    if (!payload) throw new Error('ERLC response was empty');
 
     try {
         return JSON.parse(payload);
@@ -83,16 +84,14 @@ export async function handleInteraction(interaction: Interaction) {
                 await interaction.reply({ content: '⚠️ Si è verificato un errore durante l’esecuzione del comando.', ephemeral: true });
             }
         }
-
         return;
     }
 
-    // 1. GESTIONE DI LOGS E BOTTONI INATTIVITÀ
     if (interaction.isButton()) {
         const customId = interaction.customId;
         
+        // 1. GESTIONE DI LOGS E BOTTONI INATTIVITÀ
         if (customId.startsWith('inattivita_')) {
-            // DEFER per evitare timeout
             await interaction.deferReply({ ephemeral: true });
 
             if (!checkPermission(interaction.member, 2)) {
@@ -155,7 +154,7 @@ export async function handleInteraction(interaction: Interaction) {
                 await member.setNickname(finalNick);
                 return interaction.editReply({ content: `✅ Nickname aggiornato con successo in: \`${finalNick}\`` });
             } catch (err) {
-                return interaction.editReply({ content: `❌ Impossibile modificare il tuo nickname. Verifica i privilegi del bot.` });
+                return interaction.editReply({ content: `❌ Impossibile modificare il tuo nickname. Verifica i privileges del bot.` });
             }
         }
 
@@ -306,70 +305,101 @@ export async function handleInteraction(interaction: Interaction) {
             return interaction.editReply({ content: '✅ Gestione proposta aggiornata.' });
         }
 
+        // 3. NUOVA LOGICA DI VOTAZIONE SSU (COLLEGATA AL TUO SISTEMA AD EMBED SEPARATI)
         if (customId.startsWith('voto_')) {
-            await interaction.deferReply({ ephemeral: true });
-            const parts = customId.split('_');
-            const voto = parts[1];
-            const message = interaction.message;
-            const embed = EmbedBuilder.from(message.embeds[0]);
-            const fields = message.embeds[0].fields ?? [];
-            const favorevoleField = fields.find(field => field.name === '👍 Favorevoli') ?? { name: '👍 Favorevoli', value: '0', inline: true };
-            const contrarioField = fields.find(field => field.name === '👎 Contrari') ?? { name: '👎 Contrari', value: '0', inline: true };
-            const favorevoli = Number.parseInt((favorevoleField.value || '0').replace(/[^0-9]/g, ''), 10) || 0;
-            const contrari = Number.parseInt((contrarioField.value || '0').replace(/[^0-9]/g, ''), 10) || 0;
-            const nextFav = voto === 'favorevole' ? favorevoli + 1 : favorevoli;
-            const nextContr = voto === 'contrario' ? contrari + 1 : contrari;
-            const total = nextFav + nextContr;
-            const favPct = total > 0 ? Math.round((nextFav / total) * 100) : 0;
-            const contrPct = total > 0 ? Math.round((nextContr / total) * 100) : 0;
-            const barFav = '🟩'.repeat(Math.max(1, Math.round(favPct / 10))) + '⬛'.repeat(10 - Math.max(1, Math.round(favPct / 10)));
-            const barContr = '🟩'.repeat(Math.max(1, Math.round(contrPct / 10))) + '⬛'.repeat(10 - Math.max(1, Math.round(contrPct / 10)));
-            embed.setFields(
-                { name: '👍 Favorevoli', value: `${nextFav} (${favPct}%)\n${barFav}`, inline: true },
-                { name: '👎 Contrari', value: `${nextContr} (${contrPct}%)\n${barContr}`, inline: true },
-                { name: '📊 Totale', value: `${total} voti`, inline: false }
-            );
-            await message.edit({ embeds: [embed] });
-            return interaction.editReply({ content: '✅ Voto registrato.' });
-        }
+            const btnInteraction = interaction as ButtonInteraction;
+            const userId = btnInteraction.user.id;
+            
+            const vecchioVoto = votiSSU.get(userId);
+            const nuovoVoto = customId === 'voto_favorevole' ? 'favorevole' : 'contrario';
 
-        if (customId.startsWith('unban_')) {
-            await interaction.deferReply({ ephemeral: true });
-            if (!checkPermission(interaction.member, 2)) {
-                return interaction.editReply({ content: '❌ Solo Admin e Gestionali possono sbannare.' });
-            }
-
-            const parts = customId.split('_');
-            const targetId = parts[1];
-            const robloxName = parts.slice(2).join('_');
-            const targetUser = await interaction.client.users.fetch(targetId).catch(() => null);
-
-            try {
-                const erlcResponse = await fetch('https://api.policeroleplay.community/v1/server/command', {
-                    method: 'POST',
-                    headers: {
-                        'Server-Key': CONFIG.ERLC_API_KEY,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ command: `:unban ${robloxName}` })
+            if (vecchioVoto === nuovoVoto) {
+                return void await btnInteraction.reply({
+                    content: `❌ Hai già espresso un voto ${nuovoVoto === 'favorevole' ? 'favorevole' : 'contrario'}. Se desideri cambiare la tua preferenza, clicca sull'altro pulsante.`,
+                    flags: MessageFlags.Ephemeral
                 });
-
-                if (!erlcResponse.ok) {
-                    throw new Error(`ERLC unban failed: ${erlcResponse.status}`);
-                }
-            } catch (error) {
-                console.error('Errore ERLC unban:', error);
-                return interaction.editReply({ content: '⚠️ Il comando ER:LC per lo sban non è andato a buon fine.' });
             }
 
-            const doneEmbed = new EmbedBuilder()
-                .setTitle('✅ Ban Concluso')
-                .setColor(CONFIG.COLORS.SUCCESS)
-                .setDescription(`Il ban per ${targetUser ?? robloxName} è stato rimosso.\nOra l’utente può tornare a giocare, ma è importante evitare nuove infrazioni.`)
+            const cambio = vecchioVoto !== undefined && vecchioVoto !== nuovoVoto;
+            votiSSU.set(userId, nuovoVoto);
+
+            // Generatore di array dinamico a 2 Embed per la Votazione
+            const getFavorevoli = () => [...votiSSU.entries()].filter(([_, v]) => v === 'favorevole').map(([id]) => id);
+            const getContrari = () => [...votiSSU.entries()].filter(([_, v]) => v === 'contrario').map(([id]) => id);
+
+            const favorevoli = getFavorevoli();
+            const contrari = getContrari();
+            const pieni = Math.min(favorevoli.length, SOGLIA);
+            const vuoti = SOGLIA - pieni;
+            
+            const barraProgresso = '🟩'.repeat(pieni) + '⬛'.repeat(vuoti);
+            const elencoFavorevoli = favorevoli.length > 0 ? favorevoli.map(id => `• <@${id}>`).join('\n') : '*Nessuna presenza registrata*';
+            const sogliaRaggiunta = favorevoli.length >= SOGLIA;
+
+            const descrizioneStato = sogliaRaggiunta 
+                ? `🎉 **Il quorum minimo di ${SOGLIA} utenti favorevoli è stato soddisfatto!**\n\nLe procedure di inizializzazione del server sono iniziate, attendere lo staffer.`
+                : `⚖️ **Lo staff è pronto per aprire le porte!**\nMa prima di ciò abbiamo bisogno anche di voi, alla soglia di 6 voti sarà possibile l'apertura!.\nEsprimi la tua preferenza tramite i moduli interattivi sottostanti.`;
+
+            const coloreEmbed = sogliaRaggiunta ? '#10b981' : '#2463eb';
+            const titoloEmbed = sogliaRaggiunta ? '⚡ Soglia Raggiunta! • Il server è pronto!' : '📊 Votazione SSU • Apex Italy RP';
+
+            // Vecchia nota presente nel layout
+            const vecchiaNotaField = btnInteraction.message.embeds[0]?.fields?.find(f => f.name.includes('Nota dallo Staff'));
+            const notaTesto = vecchiaNotaField ? vecchiaNotaField.value : `\`\`\`fix\nIl divertimento è la priorità, ma il realismo è la nostra regola d'oro.\n\`\`\``;
+
+            const embedPrincipale = new EmbedBuilder()
+                .setTitle(titoloEmbed)
+                .setDescription(descrizioneStato)
+                .setColor(coloreEmbed)
+                .addFields(
+                    { name: '┃ 📈 Progresso Votazione', value: `\`\`\`📊 ${barraProgresso} ( ${favorevoli.length} / ${SOGLIA} Voti )\`\`\``, inline: false },
+                    { name: '┃ 🗳️ Tabella di Pro e Contro', value: `> 🟩 Favorevoli: **${favorevoli.length}**\n> 🟥 Contrari: **${contrari.length}**\n> 👥 Partecipanti: **${votiSSU.size}**`, inline: false },
+                    { name: '┃ ⚠️ Nota dallo Staff di Apex Italy RP', value: notaTesto, inline: false }
+                )
+                .setFooter({ text: 'Votazione SSU • Apex Italy RP', iconURL: btnInteraction.guild?.iconURL() || undefined })
                 .setTimestamp();
 
-            await interaction.message.edit({ embeds: [doneEmbed], components: [] });
-            return interaction.editReply({ content: '✅ Ban rimosso con successo dal sistema ER:LC.' });
+            const embedListaFavorevoli = new EmbedBuilder()
+                .setTitle('┃ 🟢 Utenti Favorevoli all\'Apertura')
+                .setDescription(elencoFavorevoli)
+                .setColor(coloreEmbed);
+
+            const rigaPulsanti = new ActionRowBuilder<ButtonBuilder>().addComponents(
+                new ButtonBuilder().setCustomId('voto_favorevole').setLabel(`Approva (${favorevoli.length})`).setStyle(ButtonStyle.Success),
+                new ButtonBuilder().setCustomId('voto_contrario').setLabel(`Disapprova (${contrari.length})`).setStyle(ButtonStyle.Danger)
+            );
+
+            // Aggiorna la votazione sul canale pubblico a 2 embed
+            await btnInteraction.update({
+                embeds: [embedPrincipale, embedListaFavorevoli],
+                components: [rigaPulsanti]
+            });
+
+            // Invio log dello staff nel formato yaml corretto (senza errori binari)
+            const canaleLog = btnInteraction.client.channels.cache.get(CONFIG.CHANNELS.LOGS_VOTAZIONI) as TextChannel;
+            if (canaleLog && typeof canaleLog.send === 'function') {
+                try {
+                    const tipoTesto = nuovoVoto === 'favorevole' ? '🟢 APPROVAZIONE' : '🔴 DISAPPROVAZIONE';
+                    const coloreLog = nuovoVoto === 'favorevole' ? '#10b981' : '#ef4444';
+                    
+                    const logEmbed = new EmbedBuilder()
+                        .setTitle('⚖️ LOGS • Sistema Votazioni SSU')
+                        .setDescription(`• **Operatore:** <@${userId}> (\`${userId}\`)\n• **Azione:** Ha espresso voto di **${tipoTesto}**\n• **Variazione:** ${cambio ? '🔄 Sì (Ha modificato un voto precedente)' : '🆕 No (Primo inserimento)'}`)
+                        .setColor(coloreLog)
+                        .addFields({
+                            name: '📋 Rendimento Voti Totali',
+                            value: `\`\`\`yaml\nFavorevoli: ${favorevoli.length}\nContrari: ${contrari.length}\nTotali: ${votiSSU.size}\n\`\`\``,
+                            inline: false
+                        })
+                        .setFooter({ text: 'Registro Logs Staff • Apex Italy RP', iconURL: btnInteraction.guild?.iconURL() || undefined })
+                        .setTimestamp();
+
+                    await canaleLog.send({ embeds: [logEmbed] });
+                } catch (e) {
+                    console.error('Errore durante la scrittura del Log Votazione:', e);
+                }
+            }
+            return;
         }
     }
 
