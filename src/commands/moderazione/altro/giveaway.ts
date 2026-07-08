@@ -62,19 +62,18 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
     const embed = new EmbedBuilder()
         .setTitle(' 🎁 NUOVO GIVEAWAY APEX 🎁')
-        .setDescription(`**${premio}**\n\n${descrizione}`)
         .setColor(0xf1c40f)
         .setThumbnail(interaction.user.displayAvatarURL())
         .addFields(
             { name: '🍾 Premio', value: `\`${premio}\``, inline: true },
-            { name: '📊 Stato', value: '🔋 `ATTIVO`', inline: true },
+            { name: '🗞️ Descrizione', value: descrizione, inline: true },
+            { name: '📊 Stato', value: '🔋 `ATTIVO`', inline: false },
             { name: '\u200b', value: '\u200b', inline: true },
-            { name: '🗓️ Termina', value: `<t:${Math.floor(fine / 1000)}:T>`, inline: false },
-            { name: '🗞️ Descrizione', value: descrizione, inline: false }
+            { name: '🗓️ Termina', value: `<t:${Math.floor(fine / 1000)}:T>`, inline: false }
         );
 
     if (ruoliTesto) {
-        embed.addFields({ name: '❕Requisiti', value: ruoliTesto, inline: false });
+        embed.addFields({ name: '❕Requisiti', value: ruoliTesto, inline: true });
     }
 
     embed.setFooter({ text: 'Sistema Giveaway • Apex Italy RP', iconURL: interaction.guild?.iconURL() || undefined })
