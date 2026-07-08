@@ -12,7 +12,7 @@ import {
 } from 'discord.js';
 
 // ID del Ruolo Staff per Torino RP
-const RUOLO_STAFF = "1515305045032435804";
+const RUOLO_STAFF = "1521635807620890664"; // solo amministrazione 
 
 // Interfaccia per la struttura dei dati salvati in memoria locale
 interface LocalGiveaway {
