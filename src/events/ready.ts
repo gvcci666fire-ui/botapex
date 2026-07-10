@@ -104,13 +104,11 @@ export async function execute(client: Client) {
         player = createAudioPlayer();
 
         // ▼▼▼ PERSONALIZZA QUI IL TUO LINK MUSICALE ▼▼▼
-        // Inserisci uno o più URL MP3 (o streaming) che vuoi far riprodurre in loop.
-        // Esempi di link diretti che funzionano:
-        //   'https://www.example.com/mysong.mp3'
-        //   'https://files.example.com/playlist/01.mp3'
         const musicUrls: string[] = [
           // SOSTITUISCI QUESTO ESEMPIO CON IL TUO LINK REALE
-          'https://www.tuo-sito.com/il-tuo-brano.mp3',
+          'https://raw.githubusercontent.com/gvcci666fire-ui/musica/refs/heads/main/Dipinto%20-%20Bandito%20(Official%20Video).mp3',
+          'https://github.com/gvcci666fire-ui/musica/blob/main/Shiva%20-%20Bad%20Bad%20Bad%20feat.%20Geolier%20(Audio).mp3',
+          'https://github.com/gvcci666fire-ui/musica/blob/main/G.Mineiro%20-%20Splinter%20Cell%20prod.%20Flat%2C%20Succo%2C%20Jiz%20(Visualizer).mp3',
           // Aggiungi altri URL se vuoi una playlist (verranno riprodotti in sequenza e poi ricominceranno)
           // 'https://esempio.com/secondo-brano.mp3',
         ];
