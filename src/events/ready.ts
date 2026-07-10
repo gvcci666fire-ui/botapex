@@ -103,14 +103,16 @@ export async function execute(client: Client) {
         // 2️⃣ Player audio
         player = createAudioPlayer();
 
-        // ▼▼▼ PERSONALIZZA QUI IL TUO LINK MUSICALE ▼▼▼
+        // ▼▼▼ PLAYLIST CORRETTA CON URL RAW DI GITHUB ▼▼▼
         const musicUrls: string[] = [
-          // SOSTITUISCI QUESTO ESEMPIO CON IL TUO LINK REALE
+          // PRIMO BRANO - URL RAW da GitHub (quello funzionava già)
           'https://raw.githubusercontent.com/gvcci666fire-ui/musica/refs/heads/main/Dipinto%20-%20Bandito%20(Official%20Video).mp3',
-          'https://github.com/gvcci666fire-ui/musica/blob/main/Shiva%20-%20Bad%20Bad%20Bad%20feat.%20Geolier%20(Audio).mp3',
-          'https://github.com/gvcci666fire-ui/musica/blob/main/G.Mineiro%20-%20Splinter%20Cell%20prod.%20Flat%2C%20Succo%2C%20Jiz%20(Visualizer).mp3',
+          // SECONDO BRANO - URL RAW CORRETTO (sostituisci /blob/ con /raw/)
+          'https://raw.githubusercontent.com/gvcci666fire-ui/musica/main/Shiva%20-%20Bad%20Bad%20Bad%20feat.%20Geolier%20(Audio).mp3',
+          // TERZO BRANO - URL RAW CORRETTO
+          'https://raw.githubusercontent.com/gvcci666fire-ui/musica/main/G.Mineiro%20-%20Splinter%20Cell%20prod.%20Flat%2C%20Succo%2C%20Jiz%20(Visualizer).mp3',
           // Aggiungi altri URL se vuoi una playlist (verranno riprodotti in sequenza e poi ricominceranno)
-          // 'https://esempio.com/secondo-brano.mp3',
+          // 'https://raw.githubusercontent.com/tuoutente/tua-repo/main/altro-brano.mp3',
         ];
         // ▲▲▲ FINE PERSONALIZZAZIONE ▲▲▲
 
@@ -135,6 +137,7 @@ export async function execute(client: Client) {
 
             const resource = createAudioResource(url, { inputType: StreamType.Arbitrary });
             player.play(resource);
+            console.log(`🎵 Riproduzione: ${url.split('/').pop()}`);
           } catch (err) {
             console.error('❌ Errore nella creazione/riproduzione della traccia:', err);
             // Tentativo di recupero dopo breve delay
@@ -220,7 +223,7 @@ export async function execute(client: Client) {
             {
               name: '📋 Come funziona?',
               value:
-                'Il sistema analizzerà i tuoi ruoli correnti e anteporrà al tuo nome il tag stilizzato del tuo ruolo (Es: `[ꜱᴛᴀꜰꜰ] Nome`).\nSe cambi di grado, ti basterà ricliccare il pulsante.',
+                'Il sistema analizzerà i tuoi ruoli correnti e anteporrà al tuo nome il tag stilizzato del tuo ruolo (Es: `[ꜱᴛᴀꜰꜰ] Nome`).\\nSe cambi di grado, ti basterà ricliccare il pulsante.',
             }
           )
           .setTimestamp()
