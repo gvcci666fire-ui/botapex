@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, EmbedBuilder, ChatInputCommandInteraction, PermissionFlagsBits, Client, Role } from 'discord.js';
+import { SlashCommandBuilder, EmbedBuilder, ChatInputCommandInteraction, PermissionFlagsBits, Client } from 'discord.js';
 import { CONFIG } from '../../../utils/config';
 
 module.exports = {
@@ -7,44 +7,53 @@ module.exports = {
         .setDescription('Annuncia l\'assunzione di un nuovo membro nello staff')
         .addUserOption(opt => opt.setName('utente').setDescription('Lo staffer assunto').setRequired(true))
         .addRoleOption(opt => opt.setName('ruolo').setDescription('Il ruolo iniziale da assegnare').setRequired(true))
+        .addStringOption(opt => opt.setName('motivo').setDescription('Motivo/motivazioni dell\'assunzione').setRequired(true))
         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
     async execute(interaction: ChatInputCommandInteraction, client: Client) {
         const utente = interaction.options.getUser('utente');
         const ruolo = interaction.options.getRole('ruolo');
+        const motivo = interaction.options.getString('motivo');
 
-        // 🔥 GESTIONE LOCALE: Embed ad altissimo impatto visivo
-        const embedLocale = new EmbedBuilder()
-            .setTitle('📥 NUOVO MEMBRO DELLO STAFF • ASSUNZIONE')
+        // 🎉 CANALE PUBBLICO - Celebrazione dell'assunzione
+        const embedPublic = new EmbedBuilder()
+            .setTitle('📥 ASSUNZIONE STAFF • NUOVO MEMBRO')
             .setDescription(
-                `✨ La direzione di **Apex Italy RP** è lieta di accogliere un nuovo elemento all'interno dello Staff Team.\n\n` +
-                `🤝 Diamo il benvenuto a ${utente}, che da oggi coprirà ufficialmente il ruolo di **${ruolo?.name ?? 'Ruolo non disponibile'}**.\n\n` +
-                `*Auguriamo al nuovo staffer un buon lavoro e una splendida permanenza all'interno del nostro Team.*`
+                `**Comunicazione Ufficiale della Direzione**\n\n` +
+                `La direzione di **Apex Italy RP** è lieta di accogliere un nuovo elemento nello Staff Team.\n\n` +
+                `**Nuovo Membro:** ${utente}\n` +
+                `**Incarico:** ${ruolo?.name || 'N/A'}\n\n` +
+                `Auguriamo al nuovo membro un buon lavoro e una splendida permanenza nel nostro team di eccellenza.`
             )
             .addFields(
-                { name: '👤 Operatore Assunto', value: `> ${utente}`, inline: true },
-                { name: '💼 Ruolo Conferito', value: `> ${ruolo ?? 'Ruolo non disponibile'}`, inline: true }
+                { name: '👤 Nominativo', value: `${utente}`, inline: true },
+                { name: '💼 Ruolo Assegnato', value: `${ruolo?.name || 'N/A'}`, inline: true },
+                { name: '✨ Motivazione Assunzione', value: `\`\`\`${motivo}\`\`\``, inline: false }
             )
-            .setColor('#2ecc71') // Verde Smeraldo brillante
+            .setColor('#2ecc71')
             .setThumbnail(utente?.displayAvatarURL({ forceStatic: false }) || null)
-            .setFooter({ text: 'Apex Italy RP • Direzione Staff' })
+            .setAuthor({ name: `Direzione Apex Italy RP`, iconURL: interaction.guild?.iconURL() || undefined })
+            .setFooter({ text: 'Apex Italy RP • Provvedimento Ufficiale' })
             .setTimestamp();
 
-        // Invio immediato e pubblico nel canale corrente
-        await interaction.reply({ embeds: [embedLocale] });
+        await interaction.reply({ embeds: [embedPublic] });
 
-        // 📑 LOG SEPARATO: Registro amministrativo della direzione
+        // 📋 LOG AMMINISTRATIVO - Registro assunzioni
         const canaleLog = interaction.guild?.channels.cache.get(CONFIG.CHANNELS.LOG_STAFF);
         if (canaleLog?.isTextBased()) {
             const embedLog = new EmbedBuilder()
-                .setTitle('📑 Logs: ASSUNZIONE STAFF')
+                .setTitle('📋 ARCHIVIO: ASSUNZIONE STAFF')
                 .setColor('#27ae60')
                 .addFields(
-                    { name: 'Gestore Azione', value: `${interaction.user} (\`${interaction.user.id}\`)`, inline: true },
-                    { name: 'Soggetto Assunto', value: `${utente} (\`${utente?.id}\`)`, inline: true },
-                    { name: 'Ruolo Iniziale', value: `\`${ruolo?.name ?? 'Ruolo non disponibile'}\``, inline: false },
-                    { name: 'Canale Esecuzione', value: `${interaction.channel}`, inline: true }
+                    { name: '🔐 Gestore Operazione', value: `${interaction.user}\n\`${interaction.user.id}\``, inline: false },
+                    { name: '👤 Soggetto Assunto', value: `${utente}\n\`${utente?.id}\``, inline: false },
+                    { name: '💼 Qualifica Conferita', value: `${ruolo?.name || 'N/A'}`, inline: true },
+                    { name: '🕐 Timestamp', value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: true },
+                    { name: '📍 Canale Esecuzione', value: `${interaction.channel}`, inline: true },
+                    { name: '📝 Motivazione Assunzione', value: `\`\`\`${motivo}\`\`\``, inline: false }
                 )
+                .setThumbnail(utente?.displayAvatarURL({ forceStatic: false }) || null)
+                .setFooter({ text: 'Sistema di Registrazione Staff' })
                 .setTimestamp();
             await canaleLog.send({ embeds: [embedLog] });
         }
