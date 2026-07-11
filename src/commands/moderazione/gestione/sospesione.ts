@@ -17,7 +17,7 @@ module.exports = {
 
         // 🔥 GESTIONE LOCALE
         const embedLocale = new EmbedBuilder()
-            .setTitle('🛑 Gestione Staff • Sospensione')
+            .setTitle('🛑 Nuova Gestione • Sospensione Staff')
             .setDescription(
                 `🛑 Gli alti gradi comunicano un nuovo provvedimento di uno staff all'interno dello Staff Team di **Apex Italy RP**.\n\n` +
                 `L'operatore in questione è rimosso da ogni attività di moderazione e gestione pubblica per la durata stabilita.\n\n` +
@@ -25,7 +25,9 @@ module.exports = {
             )
             .addFields(
                 { name: '👤 Staffer Sospeso', value: `> ${utente}`, inline: true },
-                { name: '⏳ Durata Sospensione', value: `> \`${durata}\``, inline: true }
+                { name: '⏳ Durata Sospensione', value: `> \`${durata}\``, inline: true },
+                { name: '⚠️ Causa Sospensione', value: `> \`${motivo}\``, inline: false },
+                { name: '📌 Avviso', value: `> Provvedimento temporaneo e senza appello.`, inline: false }
             )
             .setColor('#f1c40f') // Giallo acceso (Pausa/Standby)
             .setThumbnail(utente?.displayAvatarURL({ forceStatic: false }) || null)
@@ -34,20 +36,5 @@ module.exports = {
 
         await interaction.reply({ embeds: [embedLocale] });
 
-        // 📑 LOG SEPARATO
-        const canaleLog = interaction.guild?.channels.cache.get(CONFIG.CHANNELS.LOG_STAFF);
-        if (canaleLog?.isTextBased()) {
-            const embedLog = new EmbedBuilder()
-                .setTitle('📑 Logs: SOSPENSIONE APPLICATA')
-                .setColor('#f39c12')
-                .addFields(
-                    { name: 'Responsabile', value: `${interaction.user} (\`${interaction.user.id}\`)`, inline: true },
-                    { name: 'Staffer Congelato', value: `${utente} (\`${utente?.id}\`)`, inline: true },
-                    { name: 'Tempo Assegnato', value: `\`${durata}\``, inline: true },
-                    { name: 'Causa Sospensione', value: `\`\`\`${motivo}\`\`\``, inline: false }
-                )
-                .setTimestamp();
-            await canaleLog.send({ embeds: [embedLog] });
-        }
     }
 };
