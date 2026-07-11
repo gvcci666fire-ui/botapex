@@ -36,7 +36,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     ];
     const notaCasuale = note[Math.floor(Math.random() * note.length)];
     
-    // Mappa per tracciare i voti attuels
+    // Mappa per tracciare i voti attuali
     const voti = new Map<string, 'favorevole' | 'contrario'>();
 
     function getFavorevoli() {
@@ -72,7 +72,6 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
         const elencoFavorevoli = favorevoli.length > 0 ? favorevoli.map(id => `• <@${id}>`).join('\n') : '*Nessuna presenza registrata*';
         const sogliaRaggiunta = favorevoli.length >= SOGLIA;
 
-        // 🟢 ASSET SOGLIA RAGGIUNTA (Modifica lo stato dell'embed principale)
         const descrizioneStato = sogliaRaggiunta 
             ? `🎉 **Il quorum minimo di ${SOGLIA} utenti favorevoli è stato soddisfatto!**\n\nLe procedure di inizializzazione del server sono iniziate, attendere lo staffer.`
             : `⚖️ **Lo staff è pronto per aprire le porte!**\nMa prima di ciò abbiamo bisogno anche di voi, alla soglia di 6 voti sarà possibile l'apertura!.\nEsprimi la tua preferenza tramite i moduli interattivi sottostanti.`;
@@ -80,7 +79,6 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
         const coloreEmbed = sogliaRaggiunta ? '#10b981' : '#2463eb';
         const titoloEmbed = sogliaRaggiunta ? '⚡ Soglia Raggiunta! • Il server è pronto!' : '📊 Votazione SSU • Apex Italy RP';
 
-        // EMBED 1: Statistiche globali e informazioni di sessione
         const embedPrincipale = new EmbedBuilder()
             .setTitle(titoloEmbed)
             .setDescription(descrizioneStato)
@@ -105,7 +103,6 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
             .setFooter({ text: 'Votazione SSU • Apex Italy RP', iconURL: interaction.guild?.iconURL() || undefined })
             .setTimestamp();
 
-        // EMBED 2: Separato, SOLO ed esclusivamente per la lista degli utenti favorevoli
         const embedListaFavorevoli = new EmbedBuilder()
             .setTitle('┃ 🟢 Utenti Favorevoli all\'Apertura')
             .setDescription(elencoFavorevoli)
@@ -114,7 +111,6 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
         return [embedPrincipale, embedListaFavorevoli];
     }
 
-    // REGISTRO DI CONTROLLO LOGS (Risolto il bug del codice binario)
     function creaEmbedLog(userId: string, tipo: 'favorevole' | 'contrario', cambio: boolean) {
         const favorevoli = getFavorevoli();
         const contrari = getContrari();
@@ -129,14 +125,11 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
                 `• **Variazione:** ${cambio ? '🔄 Sì (Ha modificato un voto precedente)' : '🆕 No (Primo inserimento)'}`
             )
             .setColor(colore)
-            .addFields(
-                {
-                    name: '📋 Rendimento Voti Totali',
-                    // Sostituiti i blocchi quadra [ ] difettosi con la dicitura pulita "Favorevoli: tot" richiesti
-                    value: `\`\`\`yaml\nFavorevoli: ${favorevoli.length}\nContrari: ${contrari.length}\nTotali: ${voti.size}\n\`\`\``,
-                    inline: false
-                }
-            )
+            .addFields({
+                name: '📋 Rendimento Voti Totali',
+                value: `\`\`\`yaml\nFavorevoli: ${favorevoli.length}\nContrari: ${contrari.length}\nTotali: ${voti.size}\n\`\`\``,
+                inline: false
+            })
             .setFooter({ text: 'Registro Logs Staff • Apex Italy RP', iconURL: interaction.guild?.iconURL() || undefined })
             .setTimestamp();
     }
@@ -148,11 +141,26 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
         return void await interaction.editReply({ content: '❌ Errore critico: Il canale `STATUS_ID` nel `config.ts` non esiste o non è valido.' });
     }
 
+    // Invia messaggio principale
     const messaggio = await canaleStatus.send({
         content: tagRuolo,
         embeds: creaEmbeds(),
         components: [creaRiga()]
     });
+
+    // Invia Log di avvio (Log staffer che ha lanciato il comando)
+    if (canaleLog && typeof canaleLog.send === 'function') {
+        const embedLogAvvio = new EmbedBuilder()
+            .setTitle('🚀 Logs Staff - Avvio Votazione SSU')
+            .setDescription(`La votazione SSU è stata avviata correttamente nel canale <#${canaleStatus.id}>.`)
+            .setColor('#f1c40f')
+            .addFields(
+                { name: '👤 Staffer', value: `${interaction.user} (\`${interaction.user.id}\`)`, inline: true },
+                { name: '🔗 Canale', value: `${canaleStatus}`, inline: true }
+            )
+            .setTimestamp();
+        await canaleLog.send({ embeds: [embedLogAvvio] }).catch(console.error);
+    }
 
     await interaction.editReply({ content: `✅ Votazione avviata con successo nel canale ${canaleStatus}!` });
 
@@ -167,7 +175,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
         if (vecchioVoto === nuovoVoto) {
             return void await btnInteraction.reply({
-                content: `❌ Hai già espresso un voto ${nuovoVoto === 'favorevole' ? 'favorevole' : 'contrario'}. Se desideri cambiare la tua preferenza, clicca sull'altro pulsante.`,
+                content: `❌ Hai già espresso un voto ${nuovoVoto === 'favorevole' ? 'favorevole' : 'contrario'}.`,
                 flags: MessageFlags.Ephemeral
             });
         }

@@ -17,20 +17,22 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     const RUOLO_ID = "1521635928269914303"; 
     const tagRuolo = `<@&${RUOLO_ID}>`;
 
-    // Estrazione automatica del canale dal config
+    // Recupero canali
     const canaleStatus = interaction.client.channels.cache.get(CONFIG.CHANNELS.STATUS_ID) as TextChannel;
+    const canaleLog = interaction.client.channels.cache.get(CONFIG.CHANNELS.LOGS_VOTAZIONI) as TextChannel;
+
     if (!canaleStatus || typeof canaleStatus.send !== 'function') {
         return void await interaction.editReply({ content: '❌ Errore critico: Il canale `STATUS_ID` nel `config.ts` non esiste o non è valido.' });
     }
 
-    // 🎨 LAYOUT PREMIUM CRIMSON-RED (Con i tuoi testi personalizzati)
+    // 🎨 LAYOUT PREMIUM CRIMSON-RED
     const embed = new EmbedBuilder()
         .setTitle('🔴 SSD • Server Shut Down')
         .setDescription(
             `🛑 **Il server ha ufficialmente chiuso momentaneamente.**\n` +
             `Concluso con successo con motivi come Mancanza di Player, Mancanza di Staff o Problemi Interni.`
         )
-        .setColor('#ef4444') // Rosso Acceso Premium
+        .setColor('#ef4444')
         .addFields(
             { 
                 name: '┃ 📉 Stato Attuale Server', 
@@ -52,8 +54,25 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
         .setTimestamp();
 
     try {
+        // 1. Invio annuncio pubblico
         await canaleStatus.send({ content: `${tagRuolo}`, embeds: [embed] });
-        await interaction.editReply({ content: `✅ Annuncio SSD (Chiusura) trasmesso con successo nel canale ${canaleStatus}!` });
+
+        // 2. Invio log operazione
+        if (canaleLog) {
+            const embedLog = new EmbedBuilder()
+                .setTitle('🔴 Logs Staff • Status SSD')
+                .setColor('#ef4444')
+                .setDescription(`Uno staffer ha effettuato l'SSD del server.`)
+                .addFields(
+                    { name: '👤 Staffer', value: `${interaction.user} (\`${interaction.user.id}\`)`, inline: true },
+                    { name: '🔗 Canale', value: `${canaleStatus}`, inline: true }
+                )
+                .setTimestamp();
+            
+            await canaleLog.send({ embeds: [embedLog] }).catch(console.error);
+        }
+
+        await interaction.editReply({ content: `✅ Annuncio SSD (Chiusura) trasmesso con successo!` });
     } catch (error) {
         console.error(error);
         await interaction.editReply({ content: '❌ Si è verificato un errore critico durante l\'invio dell\'embed SSD.' });

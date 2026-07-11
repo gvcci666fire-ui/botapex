@@ -16,12 +16,11 @@ import { CONFIG } from '../../../utils/config';
 export const data = new SlashCommandBuilder()
     .setName('ssu')
     .setDescription('Annuncia l\'apertura ufficiale della sessione (Server Start Up) nel canale di stato.')
-    .setDefaultMemberPermissions(PermissionFlagsBits.MuteMembers); // Blocco nativo Discord
+    .setDefaultMemberPermissions(PermissionFlagsBits.MuteMembers);
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
-    // 🛡️ Sicurezza: Controllo manuale aggiuntivo dei permessi Staff
     if (!interaction.memberPermissions?.has(PermissionFlagsBits.MuteMembers)) {
         return void await interaction.editReply({ content: '❌ Permesso negato: Questo comando è riservato esclusivamente allo Staff.' });
     }
@@ -32,107 +31,76 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     const linkServer = `https://erlc.gg/join/${codiceServer}`;
 
     const canaleStatus = interaction.client.channels.cache.get(CONFIG.CHANNELS.STATUS_ID) as TextChannel;
+    const canaleLog = interaction.client.channels.cache.get(CONFIG.CHANNELS.LOGS_VOTAZIONI) as TextChannel;
+
     if (!canaleStatus || typeof canaleStatus.send !== 'function') {
-        return void await interaction.editReply({ content: '❌ Errore critico: Il canale `STATUS_ID` nel `config.ts` non esiste o non è valido.' });
+        return void await interaction.editReply({ content: '❌ Errore critico: Il canale `STATUS_ID` nel `config.ts` non esiste.' });
     }
 
-    // 🎨 EMBED SSU COORDINATO
+    // 🎨 EMBED SSU
     const embedSSU = new EmbedBuilder()
         .setTitle('🟢 SSU • Server Start Up')
-        .setDescription(
-            `⚡ **L'attesa è finita, la città riprende vita!**\n` +
-            `La votazione ha avuto successo, e il server ha finalmente aperto le porte per un nuovo e fresco RP!`
-        )
+        .setDescription(`⚡ **L'attesa è finita, la città riprende vita!**\nLa votazione ha avuto successo, e il server ha finalmente aperto le porte per un nuovo e fresco RP!`)
         .setColor('#10b981')
         .addFields(
-            { 
-                name: '┃ 🗺️ Dettagli Server', 
-                value: `• **Nome:** Apex Italy Roleplay\n• **Codice d'accesso:** \`${codiceServer}\``, 
-                inline: true
-            },
-            { 
-                name: '┃ ⚡ Stato Attuale Server', 
-                value: `\`\`\`diff\n+ Online\n\`\`\``, 
-                inline: true
-            },
-            { 
-                name: '┃ 🔗 Link di Collegamento Rapido', 
-                value: `> 🎮 [**Clicca qui per entrare in gioco velocemente**](${linkServer})\n> 💻 Collegamento manuale: \`erlc.gg/join/${codiceServer}\``, 
-                inline: false
-            },
-            {
-                name: '┃ ⚠️ Nota dallo Staff di Apex Italy RP',
-                value: '```fix\nÈ obbligatorio rispettare il regolamento interno in ogni sua parte. Buon Roleplay!\n```',
-                inline: false
-            }
+            { name: '┃ 🗺️ Dettagli Server', value: `• **Nome:** Apex Italy Roleplay\n• **Codice:** \`${codiceServer}\``, inline: true },
+            { name: '┃ ⚡ Stato', value: `\`\`\`diff\n+ Online\n\`\`\``, inline: true },
+            { name: '┃ 🔗 Collegamento', value: `> 🎮 [**Entra in gioco**](${linkServer})\n> 💻 \`erlc.gg/join/${codiceServer}\``, inline: false },
+            { name: '┃ ⚠️ Nota Staff', value: '```fix\nÈ obbligatorio rispettare il regolamento. Buon Roleplay!\n```', inline: false }
         )
         .setFooter({ text: 'Staff • Apex Italy RP', iconURL: interaction.guild?.iconURL() || undefined })
         .setTimestamp();
 
-    // 🔘 COSTRUZIONE BOTTONE LOW STATUS
     const rigaComponenti = new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder()
-            .setCustomId('segnala_low_status')
-            .setLabel('Segnala Poca Attività (SLS)')
-            .setEmoji('⚠️')
-            .setStyle(ButtonStyle.Secondary)
+        new ButtonBuilder().setCustomId('segnala_low_status').setLabel('Segnala Poca Attività (SLS)').setEmoji('⚠️').setStyle(ButtonStyle.Secondary)
     );
 
-    // Invio del messaggio pubblico con il bottone allegato
-    const messaggioPubblico = await canaleStatus.send({ 
-        content: `${tagRuolo}`, 
-        embeds: [embedSSU], 
-        components: [rigaComponenti] 
-    });
+    const messaggioPubblico = await canaleStatus.send({ content: `${tagRuolo}`, embeds: [embedSSU], components: [rigaComponenti] });
 
-    await interaction.editReply({ content: `✅ Annuncio SSU pubblicato nel canale ${canaleStatus}. Il bottone di controllo è ora attivo!` });
+    // 📝 LOG AVVIO SSU
+    if (canaleLog) {
+        await canaleLog.send({
+            embeds: [new EmbedBuilder()
+                .setTitle('🚀 Logs Staff - Status SSU')
+                .setColor('#10b981')
+                .setDescription(`Il server è stato avviato dallo staffer **${interaction.user.username}**`)
+                .addFields({ name: '👤 Staffer', value: `${interaction.user} (\`${interaction.user.id}\`)`, inline: true })
+                .setTimestamp()]
+        }).catch(console.error);
+    }
 
-    // ⚙️ RACCOGLITORE INTERAZIONI DEL BOTTONE (Senza scadenze di tempo)
-    const collector = messaggioPubblico.createMessageComponentCollector({
-        componentType: ComponentType.Button
-    });
+    await interaction.editReply({ content: `✅ Annuncio SSU pubblicato!` });
+
+    const collector = messaggioPubblico.createMessageComponentCollector({ componentType: ComponentType.Button });
 
     collector.on('collect', async (btnInteraction: ButtonInteraction) => {
-        // 🔒 Verifica se chi clicca il bottone ha i permessi da staffer
-        const utenteIsStaff = btnInteraction.memberPermissions?.has(PermissionFlagsBits.MuteMembers);
-        if (!utenteIsStaff) {
-            return void await btnInteraction.reply({ 
-                content: '❌ Azione fallita: Solo i membri dello Staff di Apex Italy RP possono attivare questo modulo.', 
-                flags: MessageFlags.Ephemeral 
-            });
+        if (!btnInteraction.memberPermissions?.has(PermissionFlagsBits.MuteMembers)) {
+            return void await btnInteraction.reply({ content: '❌ Solo lo Staff può usare questo modulo.', flags: MessageFlags.Ephemeral });
         }
 
-        // 🎨 LAYOUT PREMIUM 3X: SERVER LOW STATUS (SLS)
         const embedSLS = new EmbedBuilder()
             .setTitle('⚠️ Apex Italy RP • Low Activity Status')
-            .setDescription(
-                `📊 **Rilevato un calo momentaneo dell'affluenza nel server.**\n` +
-                `Ricordiamo che il server è **regolarmente ONLINE**, ma la presenza di utenti è ridotta. ` +
-                `È il momento perfetto per entrare senza code, eseguire scene criminali senza farsi sgamare e molto altro!`
-            )
-            .setColor('#f59e0b') // Giallo Ambra Premium
+            .setDescription(`📊 **Rilevato calo di affluenza.** Il server è **ONLINE**, approfittane ora!`)
+            .setColor('#f59e0b')
             .addFields(
-                { 
-                    name: '┃ 🏙️ Analisi Attività', 
-                    value: `\`\`\`fix\n• INFRASTRUTTURA: REGOLARE\n• AFFLUENZA: BASSA PRESENZA\n\`\`\``, 
-                    inline: true 
-                },
-                { 
-                    name: '┃ 🚀 Ingresso Immediato', 
-                    value: `> 🗺️ Codice: \`${codiceServer}\`\n> 🔗 [**Entra Ora in Sessione**](${linkServer})`, 
-                    inline: true 
-                }
+                { name: '┃ 🏙️ Analisi', value: `\`\`\`fix\n• STATUS: BASSA PRESENZA\n\`\`\``, inline: true },
+                { name: '┃ 🚀 Ingresso', value: `> 🔗 [**Entra Ora**](${linkServer})`, inline: true }
             )
-            .setFooter({ text: 'Rilevamento Flussi • Apex Italy RP', iconURL: btnInteraction.guild?.iconURL() || undefined })
             .setTimestamp();
 
-        try {
-            // Invia un NUOVO messaggio lasciando intatto quello vecchio
-            await canaleStatus.send({ embeds: [embedSLS] });
-            await btnInteraction.reply({ content: '✅ Segnalazione di Low Status della sessione (SLS) inoltrata con successo!', flags: MessageFlags.Ephemeral });
-        } catch (err) {
-            console.error(err);
-            await btnInteraction.reply({ content: '❌ Impossibile trasmettere il Low Status.', flags: MessageFlags.Ephemeral });
+        await canaleStatus.send({ embeds: [embedSLS] });
+        await btnInteraction.reply({ content: '✅ Segnalazione SLS inoltrata!', flags: MessageFlags.Ephemeral });
+
+        // 📝 LOG SLS
+        if (canaleLog) {
+            await canaleLog.send({
+                embeds: [new EmbedBuilder()
+                    .setTitle('⚠️ Logs Staff - Segnalazione Bassa Attività')
+                    .setColor('#f59e0b')
+                    .setDescription(`Uno staffer ha segnalato bassa attività all'interno del game!`)
+                    .addFields({ name: '👤 Staffer', value: `${btnInteraction.user} (\`${btnInteraction.user.id}\`)`, inline: true })
+                    .setTimestamp()]
+            }).catch(console.error);
         }
     });
 }
