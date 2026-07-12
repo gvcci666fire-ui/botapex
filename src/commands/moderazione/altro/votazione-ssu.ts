@@ -12,6 +12,8 @@ import {
     ButtonInteraction
 } from 'discord.js';
 import { CONFIG } from '../../../utils/config';
+import { creaVotazioneSsu, aggiungiVotoSsu, getVotiSsu, getVotoUtenteSsu, getAllVotiSsu } from '../../../utils/votazioniDB';
+import { v4 as uuidv4 } from 'uuid';
 
 const SOGLIA = 6;
 
@@ -23,6 +25,7 @@ export const data = new SlashCommandBuilder()
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
+    const votazioneSsuId = uuidv4();
     const RUOLO_ID = "1521635928269914303";
     const tagRuolo = `<@&${RUOLO_ID}>`;
 
@@ -35,15 +38,15 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
         "Non dimenticare di controllare il tuo equipaggiamento prima di entrare in servizio."
     ];
     const notaCasuale = note[Math.floor(Math.random() * note.length)];
-    
-    // Mappa per tracciare i voti attuali
-    const voti = new Map<string, 'favorevole' | 'contrario'>();
 
     function getFavorevoli() {
-        return [...voti.entries()].filter(([_, v]) => v === 'favorevole').map(([id]) => id);
+        const voti = getVotiSsu(votazioneSsuId);
+        return voti.favorevoli;
     }
+
     function getContrari() {
-        return [...voti.entries()].filter(([_, v]) => v === 'contrario').map(([id]) => id);
+        const voti = getVotiSsu(votazioneSsuId);
+        return voti.contrari;
     }
 
     function creaRiga() {
@@ -51,17 +54,16 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
         const contrari = getContrari();
         return new ActionRowBuilder<ButtonBuilder>().addComponents(
             new ButtonBuilder()
-                .setCustomId('voto_favorevole')
+                .setCustomId(`voto_favorevole_${votazioneSsuId}`)
                 .setLabel(`Approva (${favorevoli.length})`)
                 .setStyle(ButtonStyle.Success),
             new ButtonBuilder()
-                .setCustomId('voto_contrario')
+                .setCustomId(`voto_contrario_${votazioneSsuId}`)
                 .setLabel(`Disapprova (${contrari.length})`)
                 .setStyle(ButtonStyle.Danger)
         );
     }
 
-    // GENERATORE DI EMBED APEX ITALY RP
     function creaEmbeds(): EmbedBuilder[] {
         const favorevoli = getFavorevoli();
         const contrari = getContrari();
@@ -91,7 +93,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
                 },
                 {
                     name: '┃ 🗳️ Tabella di Pro e Contro',
-                    value: `> 🟩 Favorevoli: **${favorevoli.length}**\n> 🟥 Contrari: **${contrari.length}**\n> 👥 Partecipanti: **${voti.size}**`,
+                    value: `> 🟩 Favorevoli: **${favorevoli.length}**\n> 🟥 Contrari: **${contrari.length}**\n> 👥 Partecipanti: **${favorevoli.length + contrari.length}**`,
                     inline: false
                 },
                 { 
@@ -127,7 +129,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
             .setColor(colore)
             .addFields({
                 name: '📋 Rendimento Voti Totali',
-                value: `\`\`\`yaml\nFavorevoli: ${favorevoli.length}\nContrari: ${contrari.length}\nTotali: ${voti.size}\n\`\`\``,
+                value: `\`\`\`yaml\nFavorevoli: ${favorevoli.length}\nContrari: ${contrari.length}\nTotali: ${favorevoli.length + contrari.length}\n\`\`\``,
                 inline: false
             })
             .setFooter({ text: 'Registro Logs Staff • Apex Italy RP', iconURL: interaction.guild?.iconURL() || undefined })
@@ -148,7 +150,10 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
         components: [creaRiga()]
     });
 
-    // Invia Log di avvio (Log staffer che ha lanciato il comando)
+    // Salva nel database
+    creaVotazioneSsu(votazioneSsuId, messaggio.id, canaleStatus.id);
+
+    // Invia Log di avvio
     if (canaleLog && typeof canaleLog.send === 'function') {
         const embedLogAvvio = new EmbedBuilder()
             .setTitle('🚀 Logs Staff - Avvio Votazione SSU')
@@ -170,18 +175,20 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
     collector.on('collect', async (btnInteraction: ButtonInteraction) => {
         const userId = btnInteraction.user.id;
-        const vecchioVoto = voti.get(userId);
-        const nuovoVoto = btnInteraction.customId === 'voto_favorevole' ? 'favorevole' : 'contrario';
+        const customIdParts = btnInteraction.customId.split('_');
+        const votoType = customIdParts[2] === 'favorevole' ? 'favorevole' : 'contrario';
+        
+        const vecchioVoto = getVotoUtenteSsu(votazioneSsuId, userId);
 
-        if (vecchioVoto === nuovoVoto) {
+        if (vecchioVoto === votoType) {
             return void await btnInteraction.reply({
-                content: `❌ Hai già espresso un voto ${nuovoVoto === 'favorevole' ? 'favorevole' : 'contrario'}.`,
+                content: `❌ Hai già espresso un voto ${votoType === 'favorevole' ? 'favorevole' : 'contrario'}.`,
                 flags: MessageFlags.Ephemeral
             });
         }
 
-        const cambio = vecchioVoto !== undefined && vecchioVoto !== nuovoVoto;
-        voti.set(userId, nuovoVoto);
+        const cambio = vecchioVoto !== null && vecchioVoto !== votoType;
+        aggiungiVotoSsu(votazioneSsuId, userId, votoType);
 
         await btnInteraction.update({
             embeds: creaEmbeds(),
@@ -190,10 +197,11 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
         if (canaleLog && typeof canaleLog.send === 'function') {
             try {
-                await canaleLog.send({ embeds: [creaEmbedLog(userId, nuovoVoto, cambio)] });
+                await canaleLog.send({ embeds: [creaEmbedLog(userId, votoType, cambio)] });
             } catch (e) {
                 console.error('Errore durante la scrittura del Log Votazione:', e);
             }
         }
     });
 }
+
