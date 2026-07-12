@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as dotenv from 'dotenv';
 import { CONFIG } from './utils/config';
+import { initVotazioniDB } from './utils/votazioniDB';
 
 const envCandidates = [
     path.resolve(process.cwd(), '.env'),
@@ -18,6 +19,22 @@ for (const candidate of envCandidates) {
         console.log(`🗂️ File .env caricato da: ${candidate}`);
         break;
     }
+}
+
+// ==========================================
+// 🗄️ INIZIALIZZAZIONE DATABASE VOTAZIONI
+// ==========================================
+console.log(`🗄️ Inizializzazione database votazioni...`);
+try {
+    // Crea la cartella data se non esiste
+    const dataDir = path.join(process.cwd(), 'data');
+    if (!fs.existsSync(dataDir)) {
+        fs.mkdirSync(dataDir, { recursive: true });
+    }
+    initVotazioniDB();
+    console.log(`✅ Database votazioni pronto!`);
+} catch (error) {
+    console.error(`❌ Errore inizializzazione database:`, error);
 }
 
 const token = (process.env.TOKEN || process.env.DISCORD_TOKEN || process.env.BOT_TOKEN || '').trim();

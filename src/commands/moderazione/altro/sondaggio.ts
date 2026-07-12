@@ -1,5 +1,7 @@
 import { SlashCommandBuilder, ChatInputCommandInteraction, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, ComponentType } from 'discord.js';
-import { CONFIG, checkPermission } from '../../../utils/config';
+import { CONFIG } from '../../../utils/config';
+import { creasondaggio, getVotiSondaggio, getUtentiVotantiSondaggio, getVotoUtenteSondaggio, aggiungiVoto } from '../../../utils/votazioniDB';
+import { v4 as uuidv4 } from 'uuid';
 
 export const data = new SlashCommandBuilder()
     .setName('sondaggio')
@@ -12,10 +14,9 @@ export const data = new SlashCommandBuilder()
     .addStringOption(opt => opt.setName('opzione4').setDescription('Opzione 4 facoltativa').setRequired(false));
 
 export async function execute(interaction: ChatInputCommandInteraction) {
-    const domanda = interaction.options.getString('domanda');
-    const descrizione = interaction.options.getString('descrizione');
-    
-    // Raccogliamo le opzioni disponibili in un array pulito
+    const domanda = interaction.options.getString('domanda')!;
+    const descrizione = interaction.options.getString('descrizione')!;
+
     const opzioniGrezze = [
         interaction.options.getString('opzione1'),
         interaction.options.getString('opzione2'),
@@ -23,11 +24,9 @@ export async function execute(interaction: ChatInputCommandInteraction) {
         interaction.options.getString('opzione4')
     ].filter(Boolean) as string[];
 
-    // Inizializziamo i voti a 0 per ciascuno
-    const voti: { [key: string]: number } = {};
-    opzioniGrezze.forEach(op => voti[op] = 0);
+    const votazioneId = uuidv4();
 
-    // Funzione helper interna per generare la barra di caricamento (esattamente come il design Discord dei tuoi screen)
+    // Funzione helper per generare la barra
     const generaBarra = (percentuale: number) => {
         const blocchiTotali = 10;
         const verdi = Math.round((percentuale / 100) * blocchiTotali);
@@ -36,9 +35,11 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     };
 
     const buildFields = () => {
+        const voti = getVotiSondaggio(votazioneId);
         const totali = Object.values(voti).reduce((a, b) => a + b, 0) || 1;
+
         return opzioniGrezze.map(op => {
-            const count = voti[op];
+            const count = voti[op] || 0;
             const pct = Math.round((count / (totali === 1 ? 1 : totali)) * 100);
             return {
                 name: op.toLowerCase(),
@@ -57,28 +58,33 @@ export async function execute(interaction: ChatInputCommandInteraction) {
         .setTimestamp();
 
     const menu = new StringSelectMenuBuilder()
-        .setCustomId('seleziona_sondaggio')
+        .setCustomId(`seleziona_sondaggio_${votazioneId}`)
         .setPlaceholder('Scegli un\'opzione dal menù per esprimere il tuo voto...');
 
-    opzioniGrezze.forEach((op, index) => {
+    opzioniGrezze.forEach((op) => {
         menu.addOptions({ label: op, value: op, description: `Vota per: ${op}` });
     });
 
     const row = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu);
     const msg = await interaction.reply({ embeds: [sondaggioEmbed], components: [row], fetchReply: true });
 
-    // Gestione dei voti in tempo reale (Collector di 24 ore)
+    // Salva nel database
+    creasondaggio(votazioneId, msg.id, interaction.channelId, domanda, opzioniGrezze);
+
+    // Collector
     const collector = msg.createMessageComponentCollector({ componentType: ComponentType.StringSelect, time: 86400000 });
-    const utentiVotanti = new Set<string>();
 
     collector.on('collect', async (i) => {
-        if (utentiVotanti.has(i.user.id)) {
+        const votoEsistente = getVotoUtenteSondaggio(votazioneId, i.user.id);
+
+        if (votoEsistente) {
             return i.reply({ content: '❌ Hai già espresso il tuo voto in questo sondaggio!', ephemeral: true });
         }
 
         const scelta = i.values[0];
-        voti[scelta]++;
-        utentiVotanti.add(i.user.id);
+        aggiungiVoto(votazioneId, i.user.id, scelta);
+
+        const utentiVotanti = getUtentiVotantiSondaggio(votazioneId);
 
         const editEmbed = new EmbedBuilder()
             .setTitle('📊 • Sondaggio __Apex Italy RP__')
@@ -91,3 +97,4 @@ export async function execute(interaction: ChatInputCommandInteraction) {
         await i.update({ embeds: [editEmbed] });
     });
 }
+
