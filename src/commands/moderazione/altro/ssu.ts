@@ -27,7 +27,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
     const RUOLO_ID = "1521635928269914303"; 
     const tagRuolo = `<@&${RUOLO_ID}>`;
-    const codiceServer = "ufMYK";
+    const codiceServer = "ApexITRP";
     const linkServer = `https://erlc.gg/join/${codiceServer}`;
 
     const canaleStatus = interaction.client.channels.cache.get(CONFIG.CHANNELS.STATUS_ID) as TextChannel;
