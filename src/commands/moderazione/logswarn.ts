@@ -27,6 +27,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
             { name: '🗂️ Dettagli Warn', value: warns.length > 0 ? warns.map((warn, i) => `${i + 1}. [${warn.id}] ${warn.reason}`).join('\n') : '*Nessun warn registrato.*' }
         )
         .setTimestamp();
+        epheremal: true;
 
     return interaction.reply({ embeds: [logsEmbed] });
 }
