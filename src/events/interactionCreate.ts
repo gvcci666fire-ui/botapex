@@ -1,6 +1,7 @@
 import { Interaction, EmbedBuilder, GuildMember, Client, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType, TextChannel, ForumChannel, ChannelType, Events, ButtonInteraction, MessageFlags } from 'discord.js';
 import { CONFIG, checkPermission, convertToSpecialFont } from '../utils/config';
 import { clearPendingCaptcha, getPendingCaptcha, setPendingCaptcha } from '../utils/captchaStore';
+import { aggiungiVotoSsu, getVotiSsu, getVotoUtenteSsu, getAllVotiSsu } from '../utils/votazioniDB';
 
 export const name = Events.InteractionCreate;
 export const once = false;
@@ -26,17 +27,10 @@ const ROLES_LIST = [
     { id: '1521635832614617168', tag: 'ʜᴇᴀᴅ ᴍᴏᴅ' },
     { id: '1521635833717981254', tag: '<b>ꜱʀ. ᴍᴏᴅ</b>', textTag: '<b>ꜱʀ. ᴍᴏᴅ</b>' },
     { id: '1521635834535612517', tag: 'ᴍᴏᴅ' },
-    { id: '1521635834535612517', tag: 'ᴍᴏᴅ' },
     { id: '1521635835869401319', tag: 'ᴊʀ. ᴍᴏᴅ' }
 ];
 
 const SOGLIA = 6;
-const votiSSU = new Map<string, 'favorevole' | 'contrario'>();
-
-// FUNZIONE RESET AGGIUNTA
-export function resetVotiSSU() {
-    votiSSU.clear();
-}
 
 function generateCaptcha() {
     const a = Math.floor(Math.random() * 10) + 1;
@@ -83,9 +77,9 @@ export async function handleInteraction(interaction: Interaction) {
         } catch (error) {
             console.error(`Errore esecuzione comando /${interaction.commandName}:`, error);
             if (interaction.replied || interaction.deferred) {
-                await interaction.followUp({ content: '⚠️ Si è verificato un errore durante l’esecuzione del comando.', ephemeral: true });
+                await interaction.followUp({ content: '⚠️ Si è verificato un errore durante l\'esecuzione del comando.', ephemeral: true });
             } else {
-                await interaction.reply({ content: '⚠️ Si è verificato un errore durante l’esecuzione del comando.', ephemeral: true });
+                await interaction.reply({ content: '⚠️ Si è verificato un errore durante l\'esecuzione del comando.', ephemeral: true });
             }
         }
         return;
@@ -187,31 +181,50 @@ export async function handleInteraction(interaction: Interaction) {
             return interaction.editReply({ content: '✅ Gestione proposta aggiornata.' });
         }
 
-        if (customId.startsWith('voto_')) {
+        // ✅ VOTAZIONI SSU - ORA USANO IL DATABASE
+        if (interaction.customId.startsWith('voto_favorevole_') || interaction.customId.startsWith('voto_contrario_')) {
             const btnInteraction = interaction as ButtonInteraction;
             const userId = btnInteraction.user.id;
-            const vecchioVoto = votiSSU.get(userId);
-            const nuovoVoto = customId === 'voto_favorevole' ? 'favorevole' : 'contrario';
-            if (vecchioVoto === nuovoVoto) return void await btnInteraction.reply({ content: `❌ Hai già espresso un voto ${nuovoVoto === 'favorevole' ? 'favorevole' : 'contrario'}.`, flags: MessageFlags.Ephemeral });
-            const cambio = vecchioVoto !== undefined && vecchioVoto !== nuovoVoto;
-            votiSSU.set(userId, nuovoVoto);
-            const getFavorevoli = () => [...votiSSU.entries()].filter(([_, v]) => v === 'favorevole').map(([id]) => id);
-            const getContrari = () => [...votiSSU.entries()].filter(([_, v]) => v === 'contrario').map(([id]) => id);
-            const favorevoli = getFavorevoli();
-            const contrari = getContrari();
+            
+            // Estrai votazioneSsuId dal customId
+            const customIdParts = btnInteraction.customId.split('_');
+            const votazioneSsuId = customIdParts.slice(2).join('_'); // Il resto è l'ID
+            
+            const votoType = btnInteraction.customId.startsWith('voto_favorevole') ? 'favorevole' : 'contrario';
+            const vecchioVoto = getVotoUtenteSsu(votazioneSsuId, userId);
+
+            if (vecchioVoto === votoType) {
+                return void await btnInteraction.reply({ 
+                    content: `❌ Hai già espresso un voto ${votoType === 'favorevole' ? 'favorevole' : 'contrario'}.`, 
+                    flags: MessageFlags.Ephemeral 
+                });
+            }
+
+            const cambio = vecchioVoto !== null && vecchioVoto !== votoType;
+            aggiungiVotoSsu(votazioneSsuId, userId, votoType);
+
+            const { favorevoli, contrari } = getVotiSsu(votazioneSsuId);
             const pieni = Math.min(favorevoli.length, SOGLIA);
             const barraProgresso = '🟩'.repeat(pieni) + '⬛'.repeat(SOGLIA - pieni);
             const sogliaRaggiunta = favorevoli.length >= SOGLIA;
-            const descrizioneStato = sogliaRaggiunta ? `🎉 **Il quorum di ${SOGLIA} voti è raggiunto!**` : `⚖️ **Lo staff è pronto!** Vota per l'apertura.`;
+            const descrizioneStato = sogliaRaggiunta 
+                ? `🎉 **Il quorum di ${SOGLIA} voti è raggiunto!**` 
+                : `⚖️ **Lo staff è pronto!** Vota per l'apertura.`;
+
             const embedPrincipale = EmbedBuilder.from(btnInteraction.message.embeds[0])
                 .setTitle(sogliaRaggiunta ? '⚡ Soglia Raggiunta!' : '📊 Votazione SSU • Apex Italy RP')
                 .setDescription(descrizioneStato)
                 .setColor(sogliaRaggiunta ? '#10b981' : '#2463eb')
-                .setFields({ name: '┃ 📈 Progresso Votazione', value: `\`\`\`📊 ${barraProgresso} ( ${favorevoli.length} / ${SOGLIA} Voti )\`\`\``, inline: false }, { name: '┃ 🗳️ Tabella di Pro e Contro', value: `> 🟩 Favorevoli: **${favorevoli.length}**\n> 🟥 Contrari: **${contrari.length}**`, inline: false });
+                .setFields(
+                    { name: '┃ 📈 Progresso Votazione', value: `\`\`\`📊 ${barraProgresso} ( ${favorevoli.length} / ${SOGLIA} Voti )\`\`\``, inline: false }, 
+                    { name: '┃ 🗳️ Tabella di Pro e Contro', value: `> 🟩 Favorevoli: **${favorevoli.length}**\n> 🟥 Contrari: **${contrari.length}**`, inline: false }
+                );
+
             const rigaPulsanti = new ActionRowBuilder<ButtonBuilder>().addComponents(
-                new ButtonBuilder().setCustomId('voto_favorevole').setLabel(`Approva (${favorevoli.length})`).setStyle(ButtonStyle.Success),
-                new ButtonBuilder().setCustomId('voto_contrario').setLabel(`Disapprova (${contrari.length})`).setStyle(ButtonStyle.Danger)
+                new ButtonBuilder().setCustomId(`voto_favorevole_${votazioneSsuId}`).setLabel(`Approva (${favorevoli.length})`).setStyle(ButtonStyle.Success),
+                new ButtonBuilder().setCustomId(`voto_contrario_${votazioneSsuId}`).setLabel(`Disapprova (${contrari.length})`).setStyle(ButtonStyle.Danger)
             );
+
             await btnInteraction.update({ embeds: [embedPrincipale], components: [rigaPulsanti] });
             return;
         }
